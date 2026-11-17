@@ -415,12 +415,18 @@ def _render_best_picks(draft_df: pd.DataFrame, rosters_df: pd.DataFrame, lid: st
     st.caption("Top picks by VORP — the most valuable selections relative to replacement level.")
 
     _seasons = sorted(draft_df["season"].dropna().unique())
-    col1, col2 = st.columns(2)
+    _rounds = sorted(draft_df["round"].dropna().unique().astype(int)) if "round" in draft_df.columns else []
+    col1, col2, col3 = st.columns(3)
     with col1:
         top_n = st.selectbox("Show top", [25, 50, 100], key="best_picks_n")
     with col2:
         sel_yr = st.selectbox("Season", ["All Time"] + [str(s) for s in _seasons], key="best_picks_yr")
+    with col3:
+        sel_rd = st.selectbox("Round", ["All Rounds"] + [f"Round {r}" for r in _rounds], key="best_picks_rd")
     _df = draft_df if sel_yr == "All Time" else draft_df[draft_df["season"] == int(sel_yr)]
+    if sel_rd != "All Rounds":
+        _rnd = int(sel_rd.split()[-1])
+        _df = _df[_df["round"] == _rnd]
     _rdf = rosters_df if sel_yr == "All Time" else rosters_df[rosters_df["season"] == int(sel_yr)] if "season" in rosters_df.columns else rosters_df
     best = best_picks_ever(_df, _rdf, league_id=lid, top_n=top_n)
 
@@ -445,12 +451,18 @@ def _render_worst_picks(draft_df: pd.DataFrame, rosters_df: pd.DataFrame, lid: s
     st.caption("Top busts by VORP — the most disappointing selections. Keepers excluded.")
 
     _seasons = sorted(draft_df["season"].dropna().unique())
-    col1, col2 = st.columns(2)
+    _rounds = sorted(draft_df["round"].dropna().unique().astype(int)) if "round" in draft_df.columns else []
+    col1, col2, col3 = st.columns(3)
     with col1:
         top_n = st.selectbox("Show top", [25, 50, 100], key="worst_picks_n")
     with col2:
         sel_yr = st.selectbox("Season", ["All Time"] + [str(s) for s in _seasons], key="worst_picks_yr")
+    with col3:
+        sel_rd = st.selectbox("Round", ["All Rounds"] + [f"Round {r}" for r in _rounds], key="worst_picks_rd")
     _df = draft_df if sel_yr == "All Time" else draft_df[draft_df["season"] == int(sel_yr)]
+    if sel_rd != "All Rounds":
+        _rnd = int(sel_rd.split()[-1])
+        _df = _df[_df["round"] == _rnd]
     _rdf = rosters_df if sel_yr == "All Time" else rosters_df[rosters_df["season"] == int(sel_yr)] if "season" in rosters_df.columns else rosters_df
     worst = worst_picks_ever(_df, _rdf, league_id=lid, top_n=top_n)
 
