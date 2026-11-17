@@ -374,7 +374,7 @@ def render(conn) -> None:
                 styled = style_dataframe(
                     out,
                     higher_is_better=["Avg Pct Rank", "Avg Win%", "Seasons Played"],
-                    lower_is_better=["Avg Finish", "Best", "Worst", "Avg PF Rank", "Avg PA Rank"],
+                    lower_is_better=["Avg Finish", "Best", "Worst", "Avg PF Rank", "Avg PA Rank", "PA Rank − PF Rank"],
                 )
                 st.dataframe(styled, use_container_width=True, hide_index=True)
                 st.caption("PA Rank − PF Rank: positive = more points against than you score (tough schedule / lower scorer); negative = outscoring more than you give up (offensive team).")
