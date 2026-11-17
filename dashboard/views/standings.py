@@ -158,6 +158,14 @@ def render(conn) -> None:
     selected_season = None if all_time else seasons[season_labels.index(selected_label) - 1]
 
     min_seasons_filter, max_seasons_filter = 1, len(seasons)
+    if all_time and len(seasons) > 1:
+        min_seasons_filter, max_seasons_filter = st.slider(
+            "Seasons played",
+            min_value=1, max_value=len(seasons),
+            value=(1, len(seasons)),
+            key="avg_rank_seasons_range",
+            help="Filter Avg Season Rank to managers who played within this range of seasons.",
+        )
 
     tab_labels = ["Regular Season Standings", "All-Play Standings"]
     if all_time:
@@ -260,14 +268,6 @@ def render(conn) -> None:
                 if "avg_pa_pct_rank" in rank_df.columns and "avg_pf_pct_rank" in rank_df.columns:
                     rank_df["pa_minus_pf"] = (rank_df["avg_pa_pct_rank"] - rank_df["avg_pf_pct_rank"]).round(3)
 
-                if "seasons" in rank_df.columns and len(seasons) > 1:
-                    min_seasons_filter, max_seasons_filter = st.slider(
-                        "Seasons played",
-                        min_value=1, max_value=len(seasons),
-                        value=(1, len(seasons)),
-                        key="avg_rank_seasons_range",
-                        help="Show only managers who played within this range of seasons.",
-                    )
                 display_df = rank_df[
                     (rank_df["seasons"] >= min_seasons_filter) & (rank_df["seasons"] <= max_seasons_filter)
                 ].copy() if "seasons" in rank_df.columns else rank_df.copy()
