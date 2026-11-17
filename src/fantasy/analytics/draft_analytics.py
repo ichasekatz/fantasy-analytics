@@ -198,7 +198,17 @@ def draft_pick_value(
             columns={"overall_pick": "overall"}
         ), on="overall", how="left")
     else:
-        merged["expected_vorp"] = float("nan")
+        # Fall back: fit expected_vorp from the season's own VORP-vs-pick polynomial
+        import numpy as np
+        valid = merged.dropna(subset=["vorp", "overall"])
+        if len(valid) > 2:
+            z = np.polyfit(valid["overall"].astype(float), valid["vorp"].astype(float), 2)
+            poly = np.poly1d(z)
+            merged["expected_vorp"] = merged["overall"].apply(
+                lambda x: float(poly(x)) if pd.notna(x) else float("nan")
+            )
+        else:
+            merged["expected_vorp"] = float("nan")
 
     merged["value_above_expected"] = merged["vorp"] - merged["expected_vorp"]
 
