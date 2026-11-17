@@ -47,14 +47,14 @@ SHAME_BADGES: list[dict] = [
             {"owner": "jake griffith", "team": "Lamarvelous B*stards", "season": 2026, "round": 7, "overall": 62},
         ],
     },
-    # Omarion Hampton Badge — 2025 only (bad year)
+    # Omarion Hampton Badge — 2026 only
     {
         "emoji": "🧊",
         "award": "Omarion Hampton Badge",
-        "description": "Drafted Omarion Hampton in 2025. He was bad.",
+        "description": "Drafted Omarion Hampton in 2026. He was bad.",
         "player": "Omarion Hampton",
         "recipients": [
-            {"owner": "Jonah Grettler", "team": "Oozma Kappa", "season": 2025, "round": 3, "overall": 31},
+            {"owner": "Jonah Grettler", "team": "Oozma Kappa", "season": 2026, "round": 3, "overall": 31},
         ],
     },
 ]
@@ -84,7 +84,7 @@ def render(conn) -> None:
         _render_alltime(matchups_df, rosters_df, draft_df, lid)
 
     with tab_shame:
-        _render_shame(draft_df)
+        _render_shame(draft_df, rosters_df)
 
 
 _AWARD_EMOJIS: dict[str, str] = {
@@ -176,7 +176,7 @@ def _render_alltime(
     _render_awards_grid(awards)
 
 
-def _render_shame(draft_df: pd.DataFrame) -> None:
+def _render_shame(draft_df: pd.DataFrame, rosters_df: pd.DataFrame) -> None:
     st.subheader("🏅 Hall of Shame Badges")
     st.caption("Awarded for specific draft choices that live in infamy.")
 
@@ -185,7 +185,7 @@ def _render_shame(draft_df: pd.DataFrame) -> None:
             st.caption(badge["description"])
             recs = badge["recipients"]
 
-            # Deduplicate by (owner, season) — same owner/season in multiple leagues
+            # Deduplicate by (owner, season)
             seen: set[tuple] = set()
             unique_recs = []
             for r in recs:
@@ -194,12 +194,37 @@ def _render_shame(draft_df: pd.DataFrame) -> None:
                     seen.add(key)
                     unique_recs.append(r)
 
-            df = pd.DataFrame(unique_recs)
-            df = df.rename(columns={
+            # Compute avg pts for this player per recipient from rosters
+            player_name = badge["player"]
+            player_rows = rosters_df[rosters_df["player"] == player_name] if not rosters_df.empty else pd.DataFrame()
+
+            rows_out = []
+            for r in unique_recs:
+                entry = dict(r)
+                if not player_rows.empty:
+                    owner_col = "owner_name" if "owner_name" in player_rows.columns else "owner"
+                    mask = (
+                        (player_rows[owner_col] == r["owner"]) &
+                        (player_rows["season"] == r["season"])
+                    )
+                    games = player_rows[mask]
+                    if not games.empty and "points" in games.columns:
+                        entry["avg_pts"] = round(games["points"].mean(), 2)
+                        entry["games"] = len(games)
+                    else:
+                        entry["avg_pts"] = None
+                        entry["games"] = 0
+                rows_out.append(entry)
+
+            df = pd.DataFrame(rows_out)
+            rename = {
                 "owner": "Manager",
                 "team": "Team",
                 "season": "Year",
                 "round": "Round",
                 "overall": "Pick #",
-            })
+                "avg_pts": "Avg Pts/Game",
+                "games": "Games",
+            }
+            df = df.rename(columns={k: v for k, v in rename.items() if k in df.columns})
             st.dataframe(df, use_container_width=True, hide_index=True)
