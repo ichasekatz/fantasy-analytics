@@ -44,7 +44,7 @@ def _generate_questions(matchups_df: pd.DataFrame, rosters_df: pd.DataFrame, dra
         matchups_df[["season", "week", "team_a_owner", "points_a"]].rename(columns={"team_a_owner": "owner", "points_a": "pts"}),
         matchups_df[["season", "week", "team_b_owner", "points_b"]].rename(columns={"team_b_owner": "owner", "points_b": "pts"}),
     ]).dropna(subset=["pts"])
-    if not all_scores.empty:
+    if not all_scores.empty and all_scores["pts"].notna().any():
         top_row = all_scores.loc[all_scores["pts"].idxmax()]
         answer = str(top_row["owner"])
         wrong = [o for o in all_owners if o != answer][:3]
@@ -120,20 +120,23 @@ def _generate_questions(matchups_df: pd.DataFrame, rosters_df: pd.DataFrame, dra
 
         # Closest championship
         champs["margin"] = abs(champs["points_a"] - champs["points_b"])
-        closest = champs.loc[champs["margin"].idxmin()]
-        closest_season = int(closest["season"])
-        wrong_seasons = [s for s in seasons if s != closest_season][:3]
-        opts_s = [str(s) for s in wrong_seasons] + [str(closest_season)]
-        random.shuffle(opts_s)
-        questions.append(TriviaQuestion(
-            question="Which season had the closest championship game?",
-            answer=str(closest_season),
-            answer_display=str(closest_season),
-            category="Championships",
-            difficulty="medium",
-            context=f"{closest_season}: margin of {closest['margin']:.2f} pts",
-            options=opts_s,
-        ))
+        if champs["margin"].isna().all():
+            closest = None
+        else:
+            if closest is not None:
+            closest_season = int(closest["season"])
+            wrong_seasons = [s for s in seasons if s != closest_season][:3]
+            opts_s = [str(s) for s in wrong_seasons] + [str(closest_season)]
+            random.shuffle(opts_s)
+            questions.append(TriviaQuestion(
+                question="Which season had the closest championship game?",
+                answer=str(closest_season),
+                answer_display=str(closest_season),
+                category="Championships",
+                difficulty="medium",
+                context=f"{closest_season}: margin of {closest['margin']:.2f} pts",
+                options=opts_s,
+            ))
 
         # Runner-up most times
         champs["runner_up"] = champs.apply(
@@ -214,7 +217,7 @@ def _generate_questions(matchups_df: pd.DataFrame, rosters_df: pd.DataFrame, dra
                     ))
 
     # --- RECORDS QUESTIONS ---
-    if not all_scores.empty:
+    if not all_scores.empty and all_scores["pts"].notna().any():
         # Most career wins
         def _wins_for(owner: str) -> int:
             w_a = matchups_df[(matchups_df["team_a_owner"] == owner) & (matchups_df["winner_team_id"] == matchups_df["team_a_id"])]
@@ -328,9 +331,15 @@ def render(conn) -> None:
         st.info("No data available for trivia.")
         return
 
-    # Generate and cache questions in session state
-    if "trivia_questions" not in st.session_state or st.button("🔀 New Game"):
-        raw_q = _generate_questions(matchups_df, rosters_df, draft_df)
+    # Always render the New Game button (never inside `or` short-circuit)
+    new_game = st.button("🔀 New Game")
+
+    if "trivia_questions" not in st.session_state or new_game:
+        try:
+            raw_q = _generate_questions(matchups_df, rosters_df, draft_df)
+        except Exception as e:
+            st.error(f"Could not generate questions: {e}")
+            return
         random.shuffle(raw_q)
         st.session_state["trivia_questions"] = raw_q
         st.session_state["trivia_idx"] = 0
