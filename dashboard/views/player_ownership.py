@@ -160,7 +160,7 @@ def _render_ownership_network(rosters_df: pd.DataFrame, transactions_df: pd.Data
         pair_df = pd.DataFrame(
             [{"Manager A": a, "Manager B": b, "Shared Players": n} for (a, b), n in pairs.items()]
         ).sort_values("Shared Players", ascending=False).head(30)
-        st.dataframe(pair_df, use_container_width=True, hide_index=True)
+        st.dataframe(style_dataframe(pair_df, higher_is_better=["Shared Players"]), use_container_width=True, hide_index=True)
 
     st.divider()
     st.subheader("Most Frequently Traded Players")
@@ -182,4 +182,4 @@ def _render_ownership_network(rosters_df: pd.DataFrame, transactions_df: pd.Data
 
     if player_counts:
         trade_df = pd.DataFrame(list(player_counts.items()), columns=["Player", "Times Traded"]).sort_values("Times Traded", ascending=False).head(25)
-        st.dataframe(trade_df, use_container_width=True, hide_index=True)
+        st.dataframe(style_dataframe(trade_df, higher_is_better=["Times Traded"]), use_container_width=True, hide_index=True)
