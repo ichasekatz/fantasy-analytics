@@ -399,10 +399,10 @@ def _render_pick_value_map(
 
     st.subheader("Pick Detail")
     all_time = sel_season == "All Time"
-    cols_show = [c for c in (["season"] if all_time else []) + ["overall", "round", "owner_name", "player", "position", "keeper", "vorp", "label"] if c in dpv.columns]
+    cols_show = [c for c in (["season"] if all_time else []) + ["overall", "round", "owner_name", "player", "position", "vorp", "label"] if c in dpv.columns]
     display = dpv[cols_show].rename(columns={
         "season": "Season", "overall": "Pick", "round": "Rd", "owner_name": "Owner",
-        "player": "Player", "position": "Pos", "keeper": "K",
+        "player": "Player", "position": "Pos",
         "vorp": "VORP", "label": "Label",
     })
     if "VORP" in display.columns:
@@ -428,11 +428,11 @@ def _render_best_picks(draft_df: pd.DataFrame, rosters_df: pd.DataFrame, lid: st
         st.info("No data.")
         return
 
-    cols = [c for c in ["rank", "season", "overall", "round", "owner_name", "player", "position", "keeper", "vorp", "total_points"] if c in best.columns]
+    cols = [c for c in ["rank", "season", "overall", "round", "owner_name", "player", "position", "vorp", "total_points"] if c in best.columns]
     display = best[cols].rename(columns={
         "rank": "#", "season": "Season", "overall": "Pick", "round": "Rd",
         "owner_name": "Owner", "player": "Player", "position": "Pos",
-        "keeper": "Keeper", "vorp": "VORP", "total_points": "Total Pts",
+        "vorp": "VORP", "total_points": "Total Pts",
     })
     for col in ["VORP", "Total Pts"]:
         if col in display.columns:
