@@ -126,7 +126,7 @@ def render(conn) -> None:
         "team_b": f"{manager_b} Team",
         "winner": "Winner",
     }
-    if league_id is None and "league_id" in norm.columns:
+    if st.session_state.get("selected_league_id") is None and "league_id" in norm.columns:
         display_cols = ["league_id"] + display_cols
         rename_map["league_id"] = "League"
 
