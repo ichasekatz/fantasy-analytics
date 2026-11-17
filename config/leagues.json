@@ -1,0 +1,49 @@
+{
+  "leagues": [
+    {
+      "league_id": "bigwells-leaguern",
+      "name": "Bigwell's Leaguern",
+      "export_path": "data/raw/bigwells-leaguern.json",
+      "added_at": "2026-11-17",
+      "primary": true,
+      "season_filter": null,
+      "notes": "Main league. ESPN 2019-2023, Sleeper 2024-2026. Median scoring 2024+."
+    },
+    {
+      "league_id": "the-big-leagues",
+      "name": "The Big Leagues",
+      "export_path": "data/raw/bigwells-leaguern.json",
+      "added_at": "2026-11-17",
+      "primary": false,
+      "season_filter": [2022, 2023],
+      "notes": "Big Leagues era view (2022-2023 ESPN seasons from Bigwell's export). primary=false so All Leagues totals don't double-count."
+    },
+    {
+      "league_id": "foxs-pizza-den-dynasty",
+      "name": "Fox's Pizza Den Dynasty Football",
+      "export_path": "data/raw/foxs-pizza-den-dynasty.json",
+      "added_at": "2026-11-17",
+      "primary": true,
+      "season_filter": null,
+      "notes": "Dynasty league. 10 teams. 2026 only."
+    },
+    {
+      "league_id": "jds-league-2026",
+      "name": "JD's League",
+      "export_path": "data/raw/jds-league-2026.json",
+      "added_at": "2026-11-17",
+      "primary": true,
+      "season_filter": null,
+      "notes": "10 teams. 2026 only."
+    },
+    {
+      "league_id": "more-dabo-please",
+      "name": "More Dabo Please",
+      "export_path": "data/raw/more-dabo-please-2023.json",
+      "added_at": "2026-11-17",
+      "primary": true,
+      "season_filter": null,
+      "notes": "12 teams. 2023 only."
+    }
+  ]
+}

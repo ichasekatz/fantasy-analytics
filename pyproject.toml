@@ -1,0 +1,39 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "fantasy"
+version = "0.1.0"
+description = "Bigwell's Leaguern historical fantasy football analytics"
+requires-python = ">=3.11"
+dependencies = [
+    "duckdb>=0.9",
+    "pandas>=2.0",
+    "streamlit>=1.28",
+    "plotly>=5.17",
+    "openpyxl>=3.1",
+    "nfl-data-py>=0.3.2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.4", "ruff>=0.1", "ty>=0.0.1a0"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/fantasy"]
+
+[tool.ruff]
+line-length = 130
+force-exclude = true
+
+[tool.ruff.lint]
+select = ["A", "B", "C4", "D", "E", "ERA", "F", "FA", "I", "ICN", "N", "PL", "PTH", "Q", "SIM", "TC", "UP", "W"]
+ignore = ["E501", "PLR0913", "PLR2004", "D203", "D213"]
+pydocstyle.convention = "google"
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

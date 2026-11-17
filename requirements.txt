@@ -1,0 +1,8 @@
+duckdb>=0.9
+pandas>=2.0
+streamlit>=1.28
+plotly>=5.17
+openpyxl>=3.1
+nfl-data-py>=0.3
+thefuzz>=0.20
+python-Levenshtein>=0.21
