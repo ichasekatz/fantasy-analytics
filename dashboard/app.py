@@ -115,10 +115,12 @@ with st.sidebar:
     st.divider()
 
     # League selector
+    _league_keys = list(league_options.keys())
+    _default_idx = next((i for i, k in enumerate(_league_keys) if "bigwell" in k.lower()), 0)
     selected_league_label = st.selectbox(
         "League",
-        list(league_options.keys()),
-        index=0,
+        _league_keys,
+        index=_default_idx,
         help="Filter all pages to a specific league, or view across all leagues.",
     )
     st.session_state["selected_league_id"] = league_options[selected_league_label]
