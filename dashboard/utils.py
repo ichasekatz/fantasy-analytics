@@ -10,7 +10,7 @@ import pandas as pd
 import streamlit as st
 
 # Columns in any DataFrame that contain owner names and should be resolved
-_OWNER_COLS = {"owner_name", "team_a_owner", "team_b_owner", "owner", "champion", "runner_up"}
+_OWNER_COLS = {"owner_name", "team_a_owner", "team_b_owner", "owner", "owner_drop", "owner_add", "champion", "runner_up"}
 
 _project_root = Path(__file__).parents[1]
 _leagues_config_path = _project_root / "config" / "leagues.json"
@@ -66,16 +66,18 @@ def build_name_map(conn) -> dict[str, str]:
     except Exception:
         pass
 
-    # Also map team names → canonical owner names from rosters
+    # Also map team names → canonical owner names from rosters (column is team_name not team)
     try:
         team_rows = conn.execute("""
-            SELECT DISTINCT team, owner_name
+            SELECT DISTINCT team_name, owner_name
             FROM rosters
-            WHERE team IS NOT NULL AND team != '' AND owner_name IS NOT NULL AND owner_name != ''
+            WHERE team_name IS NOT NULL AND team_name != '' AND owner_name IS NOT NULL AND owner_name != ''
         """).fetchall()
-        for team_name, owner_name in team_rows:
-            if team_name and owner_name and team_name != owner_name:
-                mapping[team_name] = owner_name
+        for tn, on in team_rows:
+            if tn and on and tn != on:
+                # Resolve through aliases so we get canonical display_name, not raw username
+                canonical = mapping.get(on, on)
+                mapping[tn] = canonical
     except Exception:
         pass
 

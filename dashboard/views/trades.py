@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
 
 from fantasy.analytics.trade_eval import evaluate_all_trades, player_drop_regret, trade_leaderboard
 from fantasy.analytics.transactions import trade_history, waiver_activity
-from utils import apply_league_filter
+from utils import apply_league_filter, resolve_owner_names
 
 
 def _parse_trade_row(row: pd.Series) -> dict | None:
@@ -219,12 +219,17 @@ def _render_waiver(transactions_df: pd.DataFrame, lid: str | None) -> None:
     sel_season = None if season_sel == "All Seasons" else int(season_sel)
 
     activity = waiver_activity(transactions_df, season=sel_season, league_id=lid)
+    activity = resolve_owner_names(activity)
 
     if activity.empty:
         st.info("No waiver/FA activity found.")
         return
 
     st.subheader("Waiver Activity by Manager")
+
+    all_waiver_owners = sorted(activity["owner"].dropna().unique())
+    sel_waiver_owners = st.multiselect("Filter managers", all_waiver_owners, default=all_waiver_owners, key="waiver_mgr")
+    activity = activity[activity["owner"].isin(sel_waiver_owners)]
 
     display_cols = [c for c in ["owner", "season", "total_adds", "total_drops", "net_adds", "add_drop_transactions"] if c in activity.columns]
     rename = {
@@ -244,8 +249,36 @@ def _render_waiver(transactions_df: pd.DataFrame, lid: str | None) -> None:
             labels={"total_adds": "Total Adds", "owner": "Manager"},
             title="Total Waiver/FA Adds",
         )
-        fig.update_layout(yaxis={"categoryorder": "total ascending"})
+        fig.update_layout(height=max(350, len(activity) * 35), yaxis={"categoryorder": "total ascending"})
         st.plotly_chart(fig, use_container_width=True)
+
+
+def _player_detail_df(player_names: str, season: int, min_week: int, rosters_df: pd.DataFrame) -> pd.DataFrame:
+    """Build per-player stats table for players in a trade, rest-of-season from min_week."""
+    names = [n.strip() for n in player_names.split(",") if n.strip() and n.strip() != "—"]
+    if not names or rosters_df.empty:
+        return pd.DataFrame()
+    rdf = rosters_df.copy()
+    rdf["week"] = pd.to_numeric(rdf["week"], errors="coerce")
+    rdf["season"] = pd.to_numeric(rdf["season"], errors="coerce")
+    rdf["points"] = pd.to_numeric(rdf["points"], errors="coerce").fillna(0)
+    rows = []
+    for pname in names:
+        mask = (rdf["player"] == pname) & (rdf["season"] == season) & (rdf["week"] >= min_week)
+        player_rows = rdf[mask]
+        starters = player_rows[player_rows["starter"].fillna(False).astype(bool)]
+        total = float(player_rows["points"].sum())
+        started = float(starters["points"].sum())
+        starts = int(starters.shape[0])
+        avg = round(started / starts, 1) if starts > 0 else 0.0
+        rows.append({
+            "Player": pname,
+            "Total Pts": round(total, 1),
+            "Started Pts": round(started, 1),
+            "Starts": starts,
+            "Avg/Start": avg,
+        })
+    return pd.DataFrame(rows)
 
 
 def _render_grades(transactions_df: pd.DataFrame, rosters_df: pd.DataFrame, lid: str | None) -> None:
@@ -281,16 +314,25 @@ def _render_grades(transactions_df: pd.DataFrame, rosters_df: pd.DataFrame, lid:
     lb = trade_leaderboard(filtered)
     if not lb.empty:
         st.subheader("Manager Trade Summary")
-        cols = st.columns(min(len(lb), 4))
-        for i, (_, row) in enumerate(lb.head(4).iterrows()):
-            with cols[i % len(cols)]:
-                net = row["total_net_started_points"]
-                color = "🟢" if net > 0 else ("🔴" if net < 0 else "⚪")
-                st.metric(
-                    label=row["owner"],
-                    value=f"{color} {net:+.1f} pts",
-                    delta=f"{row['trades_won']}W / {row['trades_lost']}L / {row['trades_even']}E",
-                )
+        all_lb_owners = sorted(lb["owner"].dropna().unique())
+        sel_lb_owners = st.multiselect("Filter managers", all_lb_owners, default=all_lb_owners, key="tg_lb_mgr")
+        lb_show = lb[lb["owner"].isin(sel_lb_owners)]
+        fig_lb = px.bar(
+            lb_show.sort_values("total_net_started_points", ascending=True),
+            x="total_net_started_points", y="owner", orientation="h",
+            labels={"total_net_started_points": "Net Started Pts", "owner": "Manager"},
+            color="total_net_started_points",
+            color_continuous_scale="RdYlGn",
+            title="Net started points gained/lost via trades",
+        )
+        fig_lb.update_coloraxes(showscale=False)
+        fig_lb.update_layout(height=max(350, len(lb_show) * 35), yaxis={"categoryorder": "total ascending"})
+        st.plotly_chart(fig_lb, use_container_width=True)
+        st.dataframe(lb_show.rename(columns={
+            "owner": "Manager", "total_trades": "Trades", "trades_won": "Won",
+            "trades_lost": "Lost", "trades_even": "Even",
+            "total_net_started_points": "Net Pts", "avg_net_per_trade": "Avg Net/Trade",
+        }), use_container_width=True, hide_index=True)
         st.divider()
 
     _VERDICT_ICON = {"Won": "🟢", "Lost": "🔴", "Even": "⚪"}
@@ -311,8 +353,20 @@ def _render_grades(transactions_df: pd.DataFrame, rosters_df: pd.DataFrame, lid:
             for col, r in [(c1, r0), (c2, r1)]:
                 with col:
                     st.markdown(f"**{r['owner']}** — {_VERDICT_ICON.get(r['verdict'], '')} {r['verdict']}")
-                    st.markdown(f"Acquired: `{r['players_acquired']}`")
-                    st.markdown(f"Gave up: `{r['players_surrendered']}`")
+                    season_val = int(r['season'])
+                    week_val = int(r['week'])
+                    acq_df = _player_detail_df(r['players_acquired'], season_val, week_val, rosters_df)
+                    sur_df = _player_detail_df(r['players_surrendered'], season_val, week_val, rosters_df)
+                    if not acq_df.empty:
+                        st.caption("▲ Acquired (rest-of-season from trade week)")
+                        st.dataframe(acq_df, hide_index=True, use_container_width=True)
+                    else:
+                        st.markdown(f"Acquired: `{r['players_acquired']}`")
+                    if not sur_df.empty:
+                        st.caption("▼ Surrendered (rest-of-season from trade week)")
+                        st.dataframe(sur_df, hide_index=True, use_container_width=True)
+                    else:
+                        st.markdown(f"Gave up: `{r['players_surrendered']}`")
                     st.markdown(
                         f"Started pts acquired: **{r['acq_started_points']:.1f}** ({r['acq_starter_weeks']} starts)  \n"
                         f"Started pts surrendered: **{r['sur_started_points']:.1f}** ({r['sur_starter_weeks']} starts)  \n"
@@ -336,6 +390,7 @@ def _render_drop_regret(transactions_df: pd.DataFrame, rosters_df: pd.DataFrame,
 
     with st.spinner("Computing drop regret…"):
         regret_df = player_drop_regret(txn, rosters_df)
+    regret_df = resolve_owner_names(regret_df)
 
     if regret_df.empty:
         st.info("No drop data found.")

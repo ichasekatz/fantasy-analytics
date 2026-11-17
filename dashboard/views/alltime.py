@@ -95,11 +95,18 @@ def render(conn) -> None:
             display["Avg PF/Game"] = display["Avg PF/Game"].round(1)
             st.dataframe(display, use_container_width=True, hide_index=True)
 
+            all_owners_career = sorted(career["owner"].dropna().unique())
+            sel_owners_career = st.multiselect(
+                "Filter managers", all_owners_career, default=all_owners_career, key="alltime_career_mgr"
+            )
+            career_filtered = career[career["owner"].isin(sel_owners_career)]
             fig = px.bar(
-                career.head(15), x="owner", y="h2h_wins",
+                career_filtered.sort_values("h2h_wins", ascending=True),
+                x="h2h_wins", y="owner", orientation="h",
                 labels={"owner": "Manager", "h2h_wins": "Career Wins"},
                 color_discrete_sequence=["#1f77b4"],
             )
+            fig.update_layout(height=max(350, len(career_filtered) * 30), yaxis={"categoryorder": "total ascending"})
             st.plotly_chart(fig, use_container_width=True)
 
     with tab_rank:

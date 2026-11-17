@@ -40,6 +40,143 @@ def _bust_events(rosters_df: pd.DataFrame) -> pd.DataFrame:
         return dnp
 
 
+def _render_draft_injuries(conn, rosters_df: pd.DataFrame) -> None:
+    """Show players drafted healthy who got injured mid-season, ranked by impact."""
+    st.subheader("Draft-Day Losses — Players Drafted Healthy, Injured Mid-Season")
+    st.caption(
+        "Drafted players who produced in early weeks (healthy at draft) but then "
+        "disappeared from starting lineups. Excludes already-injured players unless "
+        "they recovered then got hurt again."
+    )
+
+    lid = st.session_state.get("selected_league_id")
+    try:
+        draft_df = conn.execute("SELECT * FROM draft_picks").df()
+        draft_df = apply_league_filter(draft_df)
+    except Exception:
+        st.info("No draft pick data available.")
+        return
+
+    if draft_df.empty or rosters_df.empty:
+        st.info("No data available.")
+        return
+
+    rdf = rosters_df.copy()
+    rdf["week"] = pd.to_numeric(rdf["week"], errors="coerce")
+    rdf["season"] = pd.to_numeric(rdf["season"], errors="coerce")
+    rdf["points"] = pd.to_numeric(rdf["points"], errors="coerce").fillna(0)
+    rdf = rdf.dropna(subset=["week", "season"])
+    rdf["week"] = rdf["week"].astype(int)
+    rdf["season"] = rdf["season"].astype(int)
+
+    _EARLY_WEEKS = range(1, 5)   # weeks 1-4 = healthy at draft threshold
+    _MIN_EARLY_PTS = 4.0          # must have scored ≥4 pts in at least one early start
+    _MISS_WEEKS = 3               # ≥3 consecutive missing weeks after last start = injury
+    _REGULAR_SEASON = 13
+
+    rows = []
+    for _, pick in draft_df.iterrows():
+        player = pick.get("player") or ""
+        season = int(pick.get("season", 0))
+        owner = pick.get("owner_name") or ""
+        rnd = int(pick.get("round", 99))
+        if not player or not season or not owner:
+            continue
+
+        p_rows = rdf[(rdf["player"] == player) & (rdf["season"] == season) & (rdf["owner_name"] == owner)]
+        starter_rows = p_rows[p_rows["starter"].fillna(False).astype(bool)]
+
+        starter_weeks = sorted(starter_rows["week"].tolist())
+        if not starter_weeks:
+            continue
+
+        # Early starts: weeks 1-4
+        early_starts = starter_rows[starter_rows["week"].isin(_EARLY_WEEKS)]
+        had_early = len(early_starts) > 0 and early_starts["points"].max() >= _MIN_EARLY_PTS
+
+        last_start = max(starter_weeks)
+        missed_after = _REGULAR_SEASON - last_start  # weeks missed after last start
+
+        if had_early and missed_after >= _MISS_WEEKS and last_start < _REGULAR_SEASON - 1:
+            # True in-season injury
+            # Projected pts lost: sum projected in missed weeks (if available), else use avg
+            all_weeks = p_rows["week"].tolist()
+            missed_wks = [w for w in range(last_start + 1, _REGULAR_SEASON + 1) if w not in all_weeks]
+            proj_col = starter_rows["projected"] if "projected" in starter_rows.columns else None
+            avg_proj = float(pd.to_numeric(proj_col, errors="coerce").fillna(0).mean()) if proj_col is not None else 0.0
+            pts_before = float(starter_rows[starter_rows["week"] <= last_start]["points"].sum())
+            rows.append({
+                "Manager": owner,
+                "Season": season,
+                "Player": player,
+                "Round": rnd,
+                "Last Start": last_start,
+                "Wks Missed": len(missed_wks),
+                "Pts Scored": round(pts_before, 1),
+                "Avg Proj/Wk": round(avg_proj, 1),
+                "Est Pts Lost": round(avg_proj * len(missed_wks), 1),
+            })
+        elif not had_early and starter_weeks:
+            # Possibly already injured at draft but recovered then re-hurt
+            # Only include if they had a gap: 0 starts early, starts later, then stops again
+            first_start = min(starter_weeks)
+            if first_start > 4 and missed_after >= _MISS_WEEKS and last_start < _REGULAR_SEASON - 1:
+                p_rows2 = p_rows[p_rows["starter"].fillna(False).astype(bool)]
+                pts_scored = float(p_rows2["points"].sum())
+                proj_col = p_rows2["projected"] if "projected" in p_rows2.columns else None
+                avg_proj = float(pd.to_numeric(proj_col, errors="coerce").fillna(0).mean()) if proj_col is not None else 0.0
+                missed_wks = [w for w in range(last_start + 1, _REGULAR_SEASON + 1) if w not in p_rows["week"].tolist()]
+                rows.append({
+                    "Manager": owner,
+                    "Season": season,
+                    "Player": player,
+                    "Round": rnd,
+                    "Last Start": last_start,
+                    "Wks Missed": len(missed_wks),
+                    "Pts Scored": round(pts_scored, 1),
+                    "Avg Proj/Wk": round(avg_proj, 1),
+                    "Est Pts Lost": round(avg_proj * len(missed_wks), 1),
+                    "Note": "Re-injury (missed early too)",
+                })
+
+    if not rows:
+        st.info("No in-season injuries detected from draft picks.")
+        return
+
+    inj_df = pd.DataFrame(rows).sort_values(["Season", "Est Pts Lost"], ascending=[False, False])
+
+    # Season selector
+    seasons_avail = sorted(inj_df["Season"].unique(), reverse=True)
+    sel_s = st.selectbox("Season", ["All"] + [str(s) for s in seasons_avail], key="dinj_season")
+    if sel_s != "All":
+        inj_df = inj_df[inj_df["Season"] == int(sel_s)]
+
+    if inj_df.empty:
+        st.info("No injuries for selected season.")
+        return
+
+    # Unluckiest manager summary
+    mgr_impact = (
+        inj_df.groupby("Manager")
+        .agg(injuries=("Player", "count"), total_wks_missed=("Wks Missed", "sum"), est_pts_lost=("Est Pts Lost", "sum"))
+        .sort_values("est_pts_lost", ascending=False)
+        .reset_index()
+    )
+    fig_inj = px.bar(
+        mgr_impact, x="Manager", y="est_pts_lost",
+        labels={"est_pts_lost": "Est Pts Lost to Injuries"},
+        color="est_pts_lost", color_continuous_scale="Reds",
+        title=f"Unluckiest Managers — Estimated Pts Lost to In-Season Injuries ({sel_s})",
+    )
+    fig_inj.update_coloraxes(showscale=False)
+    st.plotly_chart(fig_inj, use_container_width=True)
+
+    st.dataframe(
+        inj_df.drop(columns=["Note"], errors="ignore"),
+        use_container_width=True, hide_index=True,
+    )
+
+
 def render(conn) -> None:
     st.title("🩺 Injury Impact")
 
@@ -104,16 +241,21 @@ def render(conn) -> None:
         st.divider()
 
         if not s_busts.empty:
-            if has_proj and s_busts["projected"].notna().any():
+            all_ov_owners = sorted(s_busts["owner_name"].dropna().unique())
+            sel_ov_owners = st.multiselect("Filter managers", all_ov_owners, default=all_ov_owners, key="inj_ov_mgr")
+            s_busts_chart = s_busts[s_busts["owner_name"].isin(sel_ov_owners)]
+
+            if has_proj and s_busts_chart["projected"].notna().any():
                 burden = (
-                    s_busts.groupby("owner_name")
+                    s_busts_chart.groupby("owner_name")
                     .apply(lambda x: (x["projected"] - x["points"]).sum(), include_groups=False)
                     .reset_index(name="pts_lost")
                     .sort_values("pts_lost", ascending=False)
                     .rename(columns={"owner_name": "Manager"})
                 )
                 fig = px.bar(
-                    burden, x="Manager", y="pts_lost",
+                    burden.sort_values("pts_lost", ascending=True),
+                    x="pts_lost", y="Manager", orientation="h",
                     labels={"pts_lost": "Pts Lost vs Projection"},
                     color="pts_lost",
                     color_continuous_scale="Reds",
@@ -121,19 +263,21 @@ def render(conn) -> None:
                 )
             else:
                 burden = (
-                    s_busts.groupby("owner_name").size()
+                    s_busts_chart.groupby("owner_name").size()
                     .reset_index(name="dnp_events")
                     .sort_values("dnp_events", ascending=False)
                     .rename(columns={"owner_name": "Manager"})
                 )
                 fig = px.bar(
-                    burden, x="Manager", y="dnp_events",
+                    burden.sort_values("dnp_events", ascending=True),
+                    x="dnp_events", y="Manager", orientation="h",
                     labels={"dnp_events": "DNP/Inactive Starters"},
                     color="dnp_events",
                     color_continuous_scale="Reds",
                     title=f"{season_title} — DNP/inactive starter events by manager",
                 )
             fig.update_coloraxes(showscale=False)
+            fig.update_layout(height=max(350, len(burden) * 35))
             st.plotly_chart(fig, use_container_width=True)
 
             expander_label = f"All DNP/bust events — {season_title}"
@@ -236,9 +380,13 @@ def render(conn) -> None:
             "A 'dud' is a starter who scored ≤ 2 pts (likely injured, IR'd, or benched)."
         )
 
+        all_dud_owners = sorted(busts["owner_name"].dropna().unique())
+        sel_dud_owners = st.multiselect("Filter managers", all_dud_owners, default=all_dud_owners, key="inj_dud_mgr")
+        busts_dud = busts[busts["owner_name"].isin(sel_dud_owners)]
+
         # All-time summary per manager
         dud_summary = (
-            busts.groupby("owner_name")
+            busts_dud.groupby("owner_name")
             .agg(
                 total_duds=("player", "count"),
                 seasons_affected=("season", "nunique"),
@@ -255,12 +403,14 @@ def render(conn) -> None:
         )
 
         fig_duds = px.bar(
-            dud_summary, x="Manager", y="Total Duds",
+            dud_summary.sort_values("Total Duds", ascending=True),
+            x="Total Duds", y="Manager", orientation="h",
             color="Total Duds",
             color_continuous_scale="OrRd",
             title="All-Time Dud Starters by Manager",
         )
         fig_duds.update_coloraxes(showscale=False)
+        fig_duds.update_layout(height=max(350, len(dud_summary) * 35))
         st.plotly_chart(fig_duds, use_container_width=True)
         st.dataframe(dud_summary, use_container_width=True, hide_index=True)
 
@@ -269,7 +419,7 @@ def render(conn) -> None:
         # Per-season breakdown
         st.subheader("Duds Per Season")
         dud_by_season = (
-            busts.groupby(["season", "owner_name"])
+            busts_dud.groupby(["season", "owner_name"])
             .size()
             .reset_index(name="duds")
             .rename(columns={"owner_name": "Manager"})
@@ -284,7 +434,7 @@ def render(conn) -> None:
         # Worst single weeks (most duds in one week by one manager)
         st.subheader("Worst Dud Weeks")
         worst_weeks = (
-            busts.groupby(["season", "week", "owner_name"])
+            busts_dud.groupby(["season", "week", "owner_name"])
             .size()
             .reset_index(name="duds_in_week")
             .rename(columns={"owner_name": "Manager"})
@@ -295,6 +445,31 @@ def render(conn) -> None:
 
     # ── Injury Timing ───────────────────────────────────────────────────────
     with tab_timing:
+        all_timing_owners = sorted(busts["owner_name"].dropna().unique())
+        sel_timing_owners = st.multiselect("Filter managers", all_timing_owners, default=all_timing_owners, key="inj_timing_mgr")
+        busts_timing = busts[busts["owner_name"].isin(sel_timing_owners)]
+
+        # --- Bust events chart ---
+        st.subheader("Bust Events by Week")
+        bust_by_week = (
+            busts_timing.groupby(["season", "week"])
+            .size()
+            .reset_index(name="bust_events")
+        )
+        bust_by_week["season"] = bust_by_week["season"].astype(str)
+        bust_by_week["week"] = bust_by_week["week"].astype(int)
+        fig_bw = px.scatter(
+            bust_by_week,
+            x="week", y="bust_events",
+            color="season",
+            size="bust_events",
+            labels={"week": "Week", "bust_events": "Bust Events", "season": "Season"},
+            title="Bust/DNP starter events per week",
+        )
+        fig_bw.update_layout(xaxis=dict(tickmode="linear", dtick=1))
+        st.plotly_chart(fig_bw, use_container_width=True)
+
+        st.divider()
         st.subheader("Did bust events cost wins?")
         st.caption("Weeks with a bust starter — did the manager win or lose?")
 
@@ -308,7 +483,7 @@ def render(conn) -> None:
         all_games["won"] = all_games["winner_team_id"] == all_games["my_id"]
 
         bust_weeks = (
-            busts[["season", "week", "owner_name", "player", "projected", "points"]]
+            busts_timing[["season", "week", "owner_name", "player", "projected", "points"]]
             .merge(all_games[["season", "week", "owner", "won"]],
                    left_on=["season", "week", "owner_name"],
                    right_on=["season", "week", "owner"], how="left")
@@ -342,3 +517,6 @@ def render(conn) -> None:
                 st.subheader("Loss weeks with bust starters")
                 st.dataframe(loss_rows.drop(columns=["won"]).sort_values(["season", "week"]),
                              use_container_width=True, hide_index=True)
+
+        st.divider()
+        _render_draft_injuries(conn, rosters_df)

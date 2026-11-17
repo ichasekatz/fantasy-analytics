@@ -51,7 +51,7 @@ def _player_points(rosters_df: pd.DataFrame, player: str, season: int, min_week:
         & (rosters_df["week"] >= min_week)
     )
     rows = rosters_df[mask]
-    starters = rows[rows["starter"] == True]
+    starters = rows[rows["starter"].fillna(False).astype(bool)]
     return {
         "total": float(rows["points"].fillna(0).sum()),
         "started": float(starters["points"].fillna(0).sum()),
@@ -179,12 +179,14 @@ def player_drop_regret(
         except (json.JSONDecodeError, TypeError):
             parties = []
 
+        # Parties only have teamId/team — no type field inside. Owner = team doing the drop.
         drop_owner = ""
         for p in parties:
             if not isinstance(p, dict):
                 continue
-            if p.get("type") == "drop":
-                drop_owner = str(p.get("owner") or p.get("name") or p.get("teamName") or "")
+            name = str(p.get("owner") or p.get("name") or p.get("teamName") or p.get("team") or "")
+            if name:
+                drop_owner = name
                 break
 
         try:
@@ -196,7 +198,16 @@ def player_drop_regret(
         for p in players:
             if not isinstance(p, dict):
                 continue
-            if p.get("type") != "drop" and p.get("action") != "drop":
+            # Dropped player: from.type == "team" (leaving the roster → waivers/FA)
+            from_type = (p.get("from") or {}).get("type", "")
+            to_type = (p.get("to") or {}).get("type", "")
+            is_drop = (
+                from_type == "team"
+                or to_type in ("waivers", "freeagents")
+                or p.get("type") == "drop"
+                or p.get("action") == "drop"
+            )
+            if not is_drop:
                 continue
             pname = p.get("player") or p.get("name") or ""
             if not pname:

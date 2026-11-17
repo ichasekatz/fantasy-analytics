@@ -172,6 +172,7 @@ with st.sidebar:
     if st.button("🔄 Reload Data"):
         st.cache_resource.clear()
         st.cache_data.clear()
+        st.session_state.pop("_name_map", None)
         st.rerun()
 
     st.caption(
