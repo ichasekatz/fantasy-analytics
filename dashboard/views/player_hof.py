@@ -106,6 +106,11 @@ def _render_by_season(rosters_df, draft_df) -> None:
 
 
 def _render_categories(career) -> None:
+    all_positions = sorted(career["position"].dropna().unique().tolist()) if "position" in career.columns else []
+    pos_filter = st.multiselect("Filter by position", all_positions, default=[], key="phof_cat_pos")
+    if pos_filter:
+        career = career[career["position"].isin(pos_filter)]
+
     st.subheader("Most Consistently Drafted")
     most_drafted = career[career["times_drafted"] > 0].sort_values("times_drafted", ascending=False).head(20)
     _show_category(most_drafted, ["player", "position", "times_drafted", "total_seasons", "total_started_points"],
