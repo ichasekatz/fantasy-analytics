@@ -35,6 +35,9 @@ def render(conn) -> None:
         st.info("No draft data available.")
         return
 
+    # Keep unfiltered copy for reaches tab (kickers/DST included intentionally)
+    full_draft_df = draft_df.copy()
+
     # Per-page IDP toggle — filters defensive players from draft data only
     if "position" in draft_df.columns:
         _is_non_skill = draft_df["position"].apply(lambda p: is_non_skill_position(str(p)) if pd.notna(p) else False)
@@ -60,16 +63,18 @@ def render(conn) -> None:
     if sel_dna_season != "All Seasons":
         _yr = int(sel_dna_season)
         draft_df = draft_df[draft_df["season"] == _yr]
+        full_draft_df = full_draft_df[full_draft_df["season"] == _yr]
         if "season" in rosters_df.columns:
             rosters_df = rosters_df[rosters_df["season"] == _yr]
         seasons = [_yr]
 
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "Position Tendencies",
         "Manager Draft Grades",
         "Pick Value Map",
         "🏆 Best Picks Ever",
         "💀 Worst Picks Ever",
+        "📐 Reaches & Values",
     ])
 
     with tab1:
@@ -86,6 +91,9 @@ def render(conn) -> None:
 
     with tab5:
         _render_worst_picks(draft_df, rosters_df, lid)
+
+    with tab6:
+        _render_reaches(full_draft_df, rosters_df, lid)
 
 
 def _render_position_tendencies(draft_df: pd.DataFrame) -> None:
@@ -508,3 +516,71 @@ def _render_worst_picks(draft_df: pd.DataFrame, rosters_df: pd.DataFrame, lid: s
             display[col] = display[col].round(1)
     lo = ["VORP"] + (["Val vs Expected"] if adp_adj else [])
     st.dataframe(style_dataframe(display, higher_is_better=["Total Pts"], lower_is_better=lo), use_container_width=True, hide_index=True)
+
+
+def _render_reaches(draft_df: pd.DataFrame, rosters_df: pd.DataFrame, lid: str | None) -> None:
+    """Reaches = picked much earlier than their season VORP rank warranted.
+    Values = picked much later (steals by pick-slot). Includes all positions
+    (K, DST, IDP) since reaching on a kicker in round 1 is a classic bad pick.
+    Reach metric: vorp_rank - overall (positive = reach, negative = value).
+    """
+    st.subheader("Reaches & Values")
+    st.caption(
+        "**Reach** = drafted much earlier than their season VORP rank deserved. "
+        "**Value** = drafted much later (hidden gem). "
+        "Metric = VORP rank minus pick slot: positive → reached, negative → found a value."
+    )
+
+    _seasons = sorted(draft_df["season"].dropna().unique())
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        top_n = st.selectbox("Show top", [25, 50, 100], key="reaches_n")
+    with col2:
+        sel_yr = st.selectbox("Season", ["All Time"] + [str(s) for s in _seasons], key="reaches_yr")
+    with col3:
+        view_type = st.selectbox("View", ["Worst Reaches", "Best Values"], key="reaches_type")
+
+    _df = draft_df if sel_yr == "All Time" else draft_df[draft_df["season"] == int(sel_yr)]
+    _rdf = rosters_df if sel_yr == "All Time" else rosters_df[rosters_df["season"] == int(sel_yr)] if "season" in rosters_df.columns else rosters_df
+
+    seasons_to_run = sorted(_df["season"].dropna().unique()) if sel_yr == "All Time" else [int(sel_yr)]
+    all_rows = []
+    for s in seasons_to_run:
+        dpv = draft_pick_value(draft_df, _rdf if sel_yr != "All Time" else rosters_df, season=s, league_id=lid)
+        if dpv.empty:
+            continue
+        dpv["season"] = s
+        # Rank players by VORP within this season (1 = best)
+        dpv["vorp_rank"] = dpv["vorp"].rank(ascending=False, method="min", na_option="bottom").astype(int)
+        dpv["reach_slots"] = dpv["vorp_rank"] - dpv["overall"]
+        all_rows.append(dpv)
+
+    if not all_rows:
+        st.info("No data.")
+        return
+
+    combined = pd.concat(all_rows, ignore_index=True)
+    combined = combined[~combined["keeper"]].copy()
+
+    if view_type == "Worst Reaches":
+        result = combined.sort_values("reach_slots", ascending=False).head(top_n).reset_index(drop=True)
+    else:
+        result = combined.sort_values("reach_slots", ascending=True).head(top_n).reset_index(drop=True)
+    result.insert(0, "rank", result.index + 1)
+
+    show_cols = [c for c in ["rank", "season", "overall", "round", "owner_name", "player", "position", "vorp", "vorp_rank", "reach_slots", "total_points"] if c in result.columns]
+    rename = {
+        "rank": "#", "season": "Season", "overall": "Pick", "round": "Rd",
+        "owner_name": "Owner", "player": "Player", "position": "Pos",
+        "vorp": "VORP", "vorp_rank": "VORP Rank", "reach_slots": "Reach Slots", "total_points": "Total Pts",
+    }
+    display = result[show_cols].rename(columns=rename)
+    for col in ["VORP", "Total Pts"]:
+        if col in display.columns:
+            display[col] = display[col].round(1)
+
+    if view_type == "Worst Reaches":
+        styled = style_dataframe(display, higher_is_better=["Reach Slots"], lower_is_better=["VORP"])
+    else:
+        styled = style_dataframe(display, higher_is_better=["VORP", "Total Pts"], lower_is_better=["Reach Slots"])
+    st.dataframe(styled, use_container_width=True, hide_index=True)

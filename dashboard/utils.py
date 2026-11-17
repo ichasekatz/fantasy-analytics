@@ -203,6 +203,12 @@ def apply_league_filter(df: pd.DataFrame) -> pd.DataFrame:
                 except Exception:
                     pass  # fall through, return original scores
 
+    # Always strip HC (Head Coach) rows — not a real fantasy scoring position
+    if "position" in df.columns:
+        df = df[~df["position"].apply(
+            lambda p: str(p).strip().upper() == "HC" if pd.notna(p) else False
+        )].copy()
+
     # Player exclusions (session-only, always applied)
     excluded: list[str] = st.session_state.get("excluded_players", [])
     if excluded and "player" in df.columns:
