@@ -18,7 +18,7 @@
     },
     {
       "canonical_id": "cm_50c89053",
-      "display_name": "AnthonyKerr",
+      "display_name": "Anthony Kerr",
       "aliases": [
         {
           "league_id": "bigwells-leaguern",
@@ -34,6 +34,11 @@
           "league_id": "foxs-pizza-den-dynasty",
           "raw_owner_id": "c4824a8c-a3c8-42de-9e08-73630e3ec139",
           "raw_name": "AnthonyKerr"
+        },
+        {
+          "league_id": "jds-league-2026",
+          "raw_owner_id": "733d79f0-33ca-40b1-8822-78a08d53fcb0",
+          "raw_name": "Anthony Kerr"
         }
       ]
     },
@@ -50,6 +55,11 @@
           "league_id": "the-big-leagues",
           "raw_owner_id": "a4e22465-f1d6-49a9-8245-b7ded01b737b",
           "raw_name": "Brandon Atwood"
+        },
+        {
+          "league_id": "foxs-pizza-den-dynasty",
+          "raw_owner_id": "8f6b8e79-e9a8-41cd-a9e2-f8bf777e6984",
+          "raw_name": "brandon230"
         }
       ]
     },
@@ -156,6 +166,11 @@
           "league_id": "more-dabo-please",
           "raw_owner_id": "b1656aad-d07b-434d-81d0-02e30e19a95d",
           "raw_name": "Johnathan Knoll"
+        },
+        {
+          "league_id": "foxs-pizza-den-dynasty",
+          "raw_owner_id": "adcc551f-9cb0-413f-959c-b774d1cda2e2",
+          "raw_name": "76hotdogs"
         }
       ]
     },
@@ -172,6 +187,11 @@
           "league_id": "the-big-leagues",
           "raw_owner_id": "a46bb220-f644-4178-9222-ef45917b083f",
           "raw_name": "Jonah Grettler"
+        },
+        {
+          "league_id": "foxs-pizza-den-dynasty",
+          "raw_owner_id": "d89a795c-1ce7-4002-adad-31a1a483b951",
+          "raw_name": "RadiatorSpringz"
         }
       ]
     },
@@ -193,6 +213,11 @@
           "league_id": "jds-league-2026",
           "raw_owner_id": "6abfc6a9-f2b0-4534-8e72-a9009c39e372",
           "raw_name": "Joshua Enfield"
+        },
+        {
+          "league_id": "foxs-pizza-den-dynasty",
+          "raw_owner_id": "e669d6d1-f6f4-47c1-bc19-1be6842225e8",
+          "raw_name": "jdenfield"
         }
       ]
     },
@@ -262,17 +287,17 @@
     },
     {
       "canonical_id": "cm_62275c9d",
-      "display_name": "Patrick  Hall",
+      "display_name": "Patrick Hall",
       "aliases": [
         {
           "league_id": "bigwells-leaguern",
           "raw_owner_id": "16d2e99e-edae-4434-84ac-455b1c9dfaaf",
-          "raw_name": "Patrick  Hall"
+          "raw_name": "Patrick Hall"
         },
         {
           "league_id": "the-big-leagues",
           "raw_owner_id": "16d2e99e-edae-4434-84ac-455b1c9dfaaf",
-          "raw_name": "Patrick  Hall"
+          "raw_name": "Patrick Hall"
         }
       ]
     },
@@ -321,6 +346,11 @@
           "league_id": "the-big-leagues",
           "raw_owner_id": "f7f19c91-e4cc-4530-bf3f-b4e962d87870",
           "raw_name": "Sean Palumbo"
+        },
+        {
+          "league_id": "foxs-pizza-den-dynasty",
+          "raw_owner_id": "929af9b8-883f-4349-a6f7-6717808e35b5",
+          "raw_name": "SeanPalumbo52"
         }
       ]
     },
