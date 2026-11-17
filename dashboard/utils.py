@@ -158,12 +158,15 @@ def apply_league_filter(df: pd.DataFrame) -> pd.DataFrame:
             if conn is not None:
                 try:
                     lid = st.session_state.get("selected_league_id")
-                    lid_clause = f"AND league_id = '{lid}'" if lid else ""
-                    rdf = conn.execute(f"""
-                        SELECT season, week, owner_name, position, points
-                        FROM rosters
-                        WHERE starter = true {lid_clause}
-                    """).df()
+                    # Load all starters; filter by league in pandas to avoid SQL injection
+                    rdf = conn.execute(
+                        "SELECT season, week, owner_name, league_id, position, points, starter FROM rosters"
+                    ).df()
+                    if lid and "league_id" in rdf.columns:
+                        rdf = rdf[rdf["league_id"] == lid]
+                    # Filter to starters only (handle both BOOLEAN and INTEGER column types)
+                    rdf = rdf[rdf["starter"].fillna(False).astype(bool)]
+                    # Strip defensive positions
                     rdf = rdf[~rdf["position"].apply(
                         lambda p: is_defensive_position(str(p)) if pd.notna(p) else False
                     )]

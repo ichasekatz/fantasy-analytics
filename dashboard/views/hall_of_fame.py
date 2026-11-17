@@ -221,10 +221,32 @@ def _render_franchise_histories(conn, matchups_df: pd.DataFrame) -> None:
         st.info("No career data.")
         return
 
+    # Compute avg PF rank and avg PA rank per manager across all seasons
+    all_seasons = sorted(matchups_df["season"].dropna().unique())
+    pf_rank_sums: dict[str, list[float]] = {}
+    pa_rank_sums: dict[str, list[float]] = {}
+    for s in all_seasons:
+        st_df = season_standings(matchups_df, int(s), lid)
+        if st_df.empty:
+            continue
+        n = len(st_df)
+        if n < 2:
+            continue
+        pf_ranks = st_df["points_for"].fillna(0).rank(ascending=False, method="min").astype(int)
+        pa_ranks = st_df["points_against"].fillna(0).rank(ascending=True, method="min").astype(int)
+        for i, row in st_df.iterrows():
+            owner = row["owner"]
+            pf_pct = 1.0 - (int(pf_ranks.loc[i]) - 1) / max(n - 1, 1)
+            pa_pct = 1.0 - (int(pa_ranks.loc[i]) - 1) / max(n - 1, 1)
+            pf_rank_sums.setdefault(owner, []).append(pf_pct)
+            pa_rank_sums.setdefault(owner, []).append(pa_pct)
+
     rows = []
     for _, r in career.iterrows():
         owner = r["owner"]
         playoffs = len(playoff_by_owner.get(owner, set()))
+        pf_pcts = pf_rank_sums.get(owner, [])
+        pa_pcts = pa_rank_sums.get(owner, [])
         rows.append({
             "Manager": owner,
             "Seasons": int(r["seasons_played"]),
@@ -232,12 +254,18 @@ def _render_franchise_histories(conn, matchups_df: pd.DataFrame) -> None:
             "L": int(r["h2h_losses"]),
             "Win%": round(float(r["h2h_win_pct"]), 3),
             "PF": round(float(r["points_for"]), 1),
+            "Avg PF Rank": round(sum(pf_pcts) / len(pf_pcts), 3) if pf_pcts else None,
+            "Avg PA Rank": round(sum(pa_pcts) / len(pa_pcts), 3) if pa_pcts else None,
             "Playoffs": playoffs,
             "Championships": champ_map.get(owner, 0),
         })
 
     df = pd.DataFrame(rows).sort_values("W", ascending=False)
-    styled = style_dataframe(df, higher_is_better=["W", "Win%", "PF", "Playoffs", "Championships", "Seasons"], lower_is_better=["L"])
+    styled = style_dataframe(
+        df,
+        higher_is_better=["W", "Win%", "PF", "Avg PF Rank", "Avg PA Rank", "Playoffs", "Championships", "Seasons"],
+        lower_is_better=["L"],
+    )
     st.dataframe(styled, use_container_width=True, hide_index=True)
 
     st.divider()
@@ -247,6 +275,10 @@ def _render_franchise_histories(conn, matchups_df: pd.DataFrame) -> None:
     lid2: str | None = st.session_state.get("selected_league_id")
     seasons = sorted(matchups_df["season"].unique())
     history_rows = []
+    champ_seasons = {
+        int(cr["season"]) for _, cr in _championship_rows(matchups_df).iterrows()
+        if cr["champion"] == sel
+    }
     for s in seasons:
         standings = season_standings(matchups_df, int(s), lid2)
         if standings.empty:
@@ -256,6 +288,14 @@ def _render_franchise_histories(conn, matchups_df: pd.DataFrame) -> None:
             continue
         rank = idx[0] + 1
         r = standings.iloc[idx[0]]
+        n = len(standings)
+        # PF/PA rank normalized to [0,1] like the avg rank tables
+        pf_ranks = standings["points_for"].fillna(0).rank(ascending=False, method="min").astype(int)
+        pa_ranks = standings["points_against"].fillna(0).rank(ascending=True, method="min").astype(int)
+        pf_r = int(pf_ranks.iloc[idx[0]])
+        pa_r = int(pa_ranks.iloc[idx[0]])
+        pf_pct = round(1.0 - (pf_r - 1) / max(n - 1, 1), 3)
+        pa_pct = round(1.0 - (pa_r - 1) / max(n - 1, 1), 3)
         history_rows.append({
             "Season": int(s),
             "Team": r.get("team", ""),
@@ -263,16 +303,22 @@ def _render_franchise_histories(conn, matchups_df: pd.DataFrame) -> None:
             "L": int(r["total_losses"]),
             "PF": round(float(r["points_for"]), 1),
             "PA": round(float(r["points_against"]), 1),
+            "PF Rank": pf_pct,
+            "PA Rank": pa_pct,
             "Finish": rank,
-            "Champion": "🏆" if champ_map.get(sel, 0) > 0 and int(s) in {
-                int(cr["season"]) for _, cr in _championship_rows(matchups_df).iterrows()
-                if cr["champion"] == sel
-            } else "",
+            "Champion": "🏆" if int(s) in champ_seasons else "",
         })
 
     if history_rows:
         st.subheader(f"{sel} — Season History")
-        st.dataframe(pd.DataFrame(history_rows), use_container_width=True, hide_index=True)
+        hist_df = pd.DataFrame(history_rows)
+        styled_hist = style_dataframe(
+            hist_df,
+            higher_is_better=["W", "PF", "PF Rank", "PA Rank"],
+            lower_is_better=["L", "PA", "Finish"],
+        )
+        st.dataframe(styled_hist, use_container_width=True, hide_index=True)
+        st.caption("PF Rank / PA Rank: 1.0 = best in league that season, 0.0 = worst. Normalized for field size.")
 
 
 def _render_draft_boards(draft_df: pd.DataFrame) -> None:
