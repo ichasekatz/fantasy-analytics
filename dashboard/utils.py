@@ -237,6 +237,18 @@ def is_defensive_position(pos: str) -> bool:
     return tokens.issubset(_DEFENSIVE_POSITION_TOKENS)
 
 
+# Positions excluded by LOCAL IDP toggles (broader than global — also strips K and DST/DEF)
+_LOCAL_IDP_EXCLUDE_TOKENS = {"K", "DST", "DEF", "D_ST", "D/ST"}
+
+
+def is_non_skill_position(pos: str) -> bool:
+    """Return True for IDP defensive positions AND kickers/DST (for local IDP toggles)."""
+    if not pos or not isinstance(pos, str):
+        return False
+    tokens = {t.strip() for t in pos.split(",")}
+    return bool(tokens & _LOCAL_IDP_EXCLUDE_TOKENS) or is_defensive_position(pos)
+
+
 def season_has_idp(roster_df: pd.DataFrame, season: int) -> bool:
     """Return True if any starter in season has a defensive position."""
     s = roster_df[(roster_df["season"] == season) & (roster_df["starter"] == True)]

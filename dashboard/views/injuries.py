@@ -12,11 +12,9 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).parents[1]))
 sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
 
-from utils import apply_league_filter, is_defensive_position, style_dataframe
+from utils import apply_league_filter, is_defensive_position, is_non_skill_position, style_dataframe
 
 _BUST_THRESHOLD = 0.40   # actual / projected < 40% = "bust" (projection mode)
-# Extra positions excluded by the LOCAL injury IDP toggle (not the global sidebar toggle)
-_INJ_LOCAL_EXCLUDE = {"K", "DST", "DEF", "D_ST", "D/ST"}
 _MIN_PROJECTED = 8.0     # ignore low-projection players
 _DNP_THRESHOLD = 2.0     # scored ≤ 2 pts as a starter = likely DNP/inactive
 
@@ -288,12 +286,9 @@ def render(conn) -> None:
     if has_idp_positions:
         exclude_idp_inj = st.checkbox("Exclude defensive players (IDP)", value=True, key="inj_exclude_idp")
         if exclude_idp_inj:
-            def _inj_exclude(p: object) -> bool:
-                if not pd.notna(p):
-                    return False
-                tokens = {t.strip() for t in str(p).split(",")}
-                return bool(tokens & _INJ_LOCAL_EXCLUDE) or is_defensive_position(str(p))
-            rosters_df = rosters_df[~rosters_df["position"].apply(_inj_exclude)]
+            rosters_df = rosters_df[~rosters_df["position"].apply(
+                lambda p: is_non_skill_position(str(p)) if pd.notna(p) else False
+            )]
 
     busts = _bust_events(rosters_df)
 

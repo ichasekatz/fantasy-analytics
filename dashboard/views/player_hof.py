@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
 
 from fantasy.analytics.player_ownership import player_career_stats, player_ownership_history
 from style import inject_css
-from utils import apply_league_filter, is_defensive_position, style_dataframe
+from utils import apply_league_filter, is_non_skill_position, style_dataframe
 
 _POS_COLORS = {"QB": "#E53E3E", "RB": "#38A169", "WR": "#3182CE", "TE": "#D69E2E", "K": "#718096", "DST": "#805AD5"}
 
@@ -105,19 +105,11 @@ def _render_by_season(rosters_df, draft_df) -> None:
     st.dataframe(styled_season, use_container_width=True, hide_index=True)
 
 
-_HOF_CAT_EXCL = {"K", "DST", "DEF", "D_ST", "D/ST"}
-
-
-def _hof_exclude_pos(p: object) -> bool:
-    if not p or str(p) == "nan":
-        return False
-    tokens = {t.strip() for t in str(p).split(",")}
-    return bool(tokens & _HOF_CAT_EXCL) or is_defensive_position(str(p))
-
-
 def _render_categories(career, rosters_df, draft_df) -> None:
     if st.checkbox("Exclude defensive players (IDP)", value=True, key="phof_cat_excl_def"):
-        career = career[~career["position"].apply(_hof_exclude_pos)]
+        career = career[~career["position"].apply(
+            lambda p: is_non_skill_position(str(p)) if p and str(p) != "nan" else False
+        )]
 
     st.subheader("Most Consistently Drafted")
     most_drafted = career[career["times_drafted"] > 0].sort_values("times_drafted", ascending=False).head(20)
@@ -153,7 +145,7 @@ def _render_categories(career, rosters_df, draft_df) -> None:
         if _lc.empty:
             continue
         if st.session_state.get("phof_cat_excl_def"):
-            _lc = _lc[~_lc["position"].apply(_hof_exclude_pos)]
+            _lc = _lc[~_lc["position"].apply(lambda p: is_non_skill_position(str(p)) if p and str(p) != "nan" else False)]
         if "best_owner_points" in _lc.columns:
             _lc = _lc[_lc["total_started_points"] > 0].copy()
             _lc["loyalty_pct"] = _lc["best_owner_points"] / _lc["total_started_points"]

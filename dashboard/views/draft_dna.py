@@ -20,7 +20,7 @@ from fantasy.analytics.draft_analytics import (
     vorp,
     worst_picks_ever,
 )
-from utils import apply_league_filter, is_defensive_position, style_dataframe
+from utils import apply_league_filter, is_defensive_position, is_non_skill_position, style_dataframe
 
 
 def render(conn) -> None:
@@ -37,8 +37,8 @@ def render(conn) -> None:
 
     # Per-page IDP toggle — filters defensive players from draft data only
     if "position" in draft_df.columns:
-        _is_def = draft_df["position"].apply(lambda p: is_defensive_position(str(p)) if pd.notna(p) else False)
-        if _is_def.any():
+        _is_non_skill = draft_df["position"].apply(lambda p: is_non_skill_position(str(p)) if pd.notna(p) else False)
+        if _is_non_skill.any():
             _exclude_idp_draft = st.checkbox(
                 "Exclude defensive players (IDP) from draft analysis",
                 value=st.session_state.get("exclude_defensive", True),
@@ -46,10 +46,10 @@ def render(conn) -> None:
                 help="2019 season had individual defensive players. Exclude for cleaner position/VORP analysis.",
             )
             if _exclude_idp_draft:
-                draft_df = draft_df[~_is_def]
+                draft_df = draft_df[~_is_non_skill]
                 if "position" in rosters_df.columns:
                     rosters_df = rosters_df[~rosters_df["position"].apply(
-                        lambda p: is_defensive_position(str(p)) if pd.notna(p) else False
+                        lambda p: is_non_skill_position(str(p)) if pd.notna(p) else False
                     )]
 
     seasons = sorted(draft_df["season"].unique())
