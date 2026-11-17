@@ -253,7 +253,21 @@ def render(conn) -> None:
             if rank_df.empty:
                 st.info("No data available.")
             else:
-                rank_df.insert(0, "Rank", range(1, len(rank_df) + 1))
+                # PA Rank - PF Rank: positive = better at limiting pts than scoring (defensive),
+                # negative = better scorer than defender, ~0 = balanced
+                if "avg_pa_pct_rank" in rank_df.columns and "avg_pf_pct_rank" in rank_df.columns:
+                    rank_df["pa_minus_pf"] = (rank_df["avg_pa_pct_rank"] - rank_df["avg_pf_pct_rank"]).round(3)
+
+                max_seasons = int(rank_df["seasons"].max()) if "seasons" in rank_df.columns else 1
+                min_seasons = st.slider(
+                    "Min seasons played (display filter)",
+                    min_value=1, max_value=max_seasons, value=1,
+                    key="avg_rank_min_seasons",
+                    help="Hides managers with fewer seasons from view — underlying data unchanged.",
+                )
+                display_df = rank_df[rank_df["seasons"] >= min_seasons].copy() if "seasons" in rank_df.columns else rank_df.copy()
+                display_df.insert(0, "Rank", range(1, len(display_df) + 1))
+
                 cols_to_show = ["Rank", "owner", "avg_finish", "best_finish", "worst_finish",
                                 "avg_pct_rank", "avg_win_pct"]
                 rename_map = {
@@ -265,21 +279,25 @@ def render(conn) -> None:
                     "avg_win_pct": "Avg Win%",
                     "seasons": "Seasons Played",
                     "season_list": "Seasons",
+                    "pa_minus_pf": "PA Rank − PF Rank",
                 }
-                if "avg_pf_pct_rank" in rank_df.columns:
+                if "avg_pf_pct_rank" in display_df.columns:
                     cols_to_show.append("avg_pf_pct_rank")
                     rename_map["avg_pf_pct_rank"] = "Avg PF Rank"
-                if "avg_pa_pct_rank" in rank_df.columns:
+                if "avg_pa_pct_rank" in display_df.columns:
                     cols_to_show.append("avg_pa_pct_rank")
                     rename_map["avg_pa_pct_rank"] = "Avg PA Rank"
+                if "pa_minus_pf" in display_df.columns:
+                    cols_to_show.append("pa_minus_pf")
                 cols_to_show += ["seasons", "season_list"]
-                out = rank_df[[c for c in cols_to_show if c in rank_df.columns]].rename(columns=rename_map)
+                out = display_df[[c for c in cols_to_show if c in display_df.columns]].rename(columns=rename_map)
                 styled = style_dataframe(
                     out,
                     higher_is_better=["Avg Pct Rank", "Avg Win%", "Avg PF Rank", "Avg PA Rank", "Seasons Played"],
                     lower_is_better=["Avg Finish", "Best", "Worst"],
                 )
                 st.dataframe(styled, use_container_width=True, hide_index=True)
+                st.caption("PA Rank − PF Rank: positive = better at limiting pts than scoring; negative = better scorer than defender.")
 
     if not all_time:
         _schedule_justice(matchups_df, selected_season, lid)
