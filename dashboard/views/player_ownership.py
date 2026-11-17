@@ -119,8 +119,9 @@ def _render_repeat_owners(draft_df: pd.DataFrame) -> None:
         return
 
     repeat["seasons"] = repeat["seasons"].apply(lambda s: ", ".join(str(x) for x in s))
+    repeat_display = repeat.rename(columns={"owner_name": "Manager", "player": "Player", "times_drafted": "Times Drafted", "seasons": "Seasons"})
     st.dataframe(
-        repeat.rename(columns={"owner_name": "Manager", "player": "Player", "times_drafted": "Times Drafted", "seasons": "Seasons"}),
+        style_dataframe(repeat_display, higher_is_better=["Times Drafted"]),
         use_container_width=True, hide_index=True,
     )
 
@@ -128,7 +129,10 @@ def _render_repeat_owners(draft_df: pd.DataFrame) -> None:
     st.subheader("Most Repeat Picks by Manager")
     mgr_repeat = repeat.groupby("owner_name")["times_drafted"].sum().reset_index().sort_values("times_drafted", ascending=False)
     mgr_repeat.columns = ["Manager", "Total Repeat Draft Picks"]
-    st.dataframe(mgr_repeat, use_container_width=True, hide_index=True)
+    st.dataframe(
+        style_dataframe(mgr_repeat, higher_is_better=["Total Repeat Draft Picks"]),
+        use_container_width=True, hide_index=True,
+    )
 
 
 def _render_ownership_network(rosters_df: pd.DataFrame, transactions_df: pd.DataFrame) -> None:
