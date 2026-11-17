@@ -16,7 +16,7 @@ from fantasy.analytics.cross_league import cross_league_standings
 from fantasy.analytics.standings import career_standings, season_standings
 from fantasy.identity.enrichment import enrich_matchups
 from fantasy.identity.registry import load_registry
-from utils import apply_league_filter
+from utils import apply_league_filter, style_dataframe
 
 _identity_path = Path(__file__).parents[2] / "data" / "identity" / "manager_aliases.json"
 
@@ -131,7 +131,8 @@ def render(conn) -> None:
 
     if rows:
         rows_df = pd.DataFrame(rows)
-        st.dataframe(rows_df, use_container_width=True, hide_index=True)
+        styled = style_dataframe(rows_df, higher_is_better=["W", "PF"], lower_is_better=["L", "Finish"])
+        st.dataframe(styled, use_container_width=True, hide_index=True)
     st.divider()
 
     # Weekly scoring distribution

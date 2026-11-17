@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
 
 from fantasy.analytics.standings import career_standings, season_standings
 from style import inject_css
-from utils import apply_league_filter
+from utils import apply_league_filter, filter_redraft, is_dynasty_league, style_dataframe
 
 _POS_COLORS = {
     "QB": "#E53E3E",
@@ -30,8 +30,17 @@ def render(conn) -> None:
     inject_css()
     st.title("🏛️ League Museum")
 
+    lid = st.session_state.get("selected_league_id")
     matchups_df = apply_league_filter(conn.execute("SELECT * FROM matchups").df())
     draft_df = apply_league_filter(conn.execute("SELECT * FROM draft_picks ORDER BY season, overall").df())
+
+    # Split redraft vs dynasty when viewing All Leagues
+    if lid is None and "league_id" in matchups_df.columns:
+        redraft_df = filter_redraft(matchups_df)
+        dynasty_df = matchups_df[matchups_df["league_id"].apply(is_dynasty_league)].copy()
+    else:
+        redraft_df = matchups_df
+        dynasty_df = pd.DataFrame()
 
     tab1, tab2, tab3, tab4 = st.tabs([
         "🏆 Championship Gallery",
@@ -41,13 +50,16 @@ def render(conn) -> None:
     ])
 
     with tab1:
-        _render_championship_gallery(matchups_df)
+        _render_championship_gallery(redraft_df)
+        if not dynasty_df.empty:
+            with st.expander("🏰 Dynasty League Championships", expanded=False):
+                _render_championship_gallery(dynasty_df)
 
     with tab2:
-        _render_season_timeline(conn, matchups_df)
+        _render_season_timeline(conn, redraft_df, dynasty_df)
 
     with tab3:
-        _render_franchise_histories(conn, matchups_df)
+        _render_franchise_histories(conn, redraft_df)
 
     with tab4:
         _render_draft_boards(draft_df)
@@ -114,50 +126,68 @@ def _render_championship_gallery(matchups_df: pd.DataFrame) -> None:
     st.plotly_chart(fig, use_container_width=True)
 
 
-def _render_season_timeline(conn, matchups_df: pd.DataFrame) -> None:
+def _render_season_timeline(conn, matchups_df: pd.DataFrame, dynasty_df: pd.DataFrame | None = None) -> None:
     st.subheader("📅 Season Timeline")
 
     seasons = sorted(matchups_df["season"].dropna().unique())
     if not seasons:
         st.info("No season data.")
-        return
+    else:
+        champ_map = {}
+        for _, row in _championship_rows(matchups_df).iterrows():
+            champ_map[int(row["season"])] = row["champion"]
 
-    champ_map = {}
-    for _, row in _championship_rows(matchups_df).iterrows():
-        champ_map[int(row["season"])] = row["champion"]
+        all_scores = pd.concat([
+            matchups_df[["season", "week", "team_a_owner", "points_a"]].rename(columns={"team_a_owner": "owner", "points_a": "pts"}),
+            matchups_df[["season", "week", "team_b_owner", "points_b"]].rename(columns={"team_b_owner": "owner", "points_b": "pts"}),
+        ]).dropna(subset=["pts"])
 
-    all_scores = pd.concat([
-        matchups_df[["season", "week", "team_a_owner", "points_a"]].rename(columns={"team_a_owner": "owner", "points_a": "pts"}),
-        matchups_df[["season", "week", "team_b_owner", "points_b"]].rename(columns={"team_b_owner": "owner", "points_b": "pts"}),
-    ]).dropna(subset=["pts"])
+        for s in reversed(seasons):
+            s = int(s)
+            season_scores = all_scores[all_scores["season"] == s]
+            teams = len(matchups_df[matchups_df["season"] == s][["team_a_owner"]].drop_duplicates())
+            champion = champ_map.get(s, "—")
+            top_scorer = season_scores.loc[season_scores["pts"].idxmax()] if not season_scores.empty else None
 
-    for s in reversed(seasons):
-        s = int(s)
-        season_scores = all_scores[all_scores["season"] == s]
-        teams = len(matchups_df[matchups_df["season"] == s][["team_a_owner"]].drop_duplicates())
-        champion = champ_map.get(s, "—")
-        top_scorer = season_scores.loc[season_scores["pts"].idxmax()] if not season_scores.empty else None
+            with st.expander(f"**{s}** — 🏆 {champion} · {teams} teams", expanded=False):
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Champion", champion)
+                if top_scorer is not None:
+                    try:
+                        pts_val = float(top_scorer["pts"])
+                        c2.metric("Best Single Game", f"{pts_val:.1f} pts")
+                        c3.metric("Best Scorer", str(top_scorer["owner"]))
+                    except (KeyError, TypeError, ValueError):
+                        pass
 
-        with st.expander(f"**{s}** — 🏆 {champion} · {teams} teams", expanded=False):
-            c1, c2, c3 = st.columns(3)
-            c1.metric("Champion", champion)
-            if top_scorer is not None:
-                try:
-                    pts_val = float(top_scorer["pts"])
-                    c2.metric("Best Single Game", f"{pts_val:.1f} pts")
-                    c3.metric("Best Scorer", str(top_scorer["owner"]))
-                except (KeyError, TypeError, ValueError):
-                    pass
+                lid: str | None = st.session_state.get("selected_league_id")
+                standings = season_standings(matchups_df, s, lid)
+                if not standings.empty:
+                    top3 = standings.head(3)[["owner", "total_wins", "total_losses", "points_for"]].rename(columns={
+                        "owner": "Manager", "total_wins": "W", "total_losses": "L", "points_for": "PF"
+                    })
+                    top3["PF"] = top3["PF"].round(1)
+                    st.caption("Top 3 finishers:")
+                    st.dataframe(style_dataframe(top3, higher_is_better=["W", "PF"], lower_is_better=["L"]), use_container_width=True, hide_index=True)
 
-            lid: str | None = st.session_state.get("selected_league_id")
-            standings = season_standings(matchups_df, s, lid)
-            if not standings.empty:
-                top3 = standings.head(3)[["owner", "total_wins", "total_losses", "points_for"]].rename(columns={
-                    "owner": "Manager", "total_wins": "W", "total_losses": "L", "points_for": "PF"
-                })
-                top3["PF"] = top3["PF"].round(1)
-                st.caption("Top 3 finishers:")
-                st.dataframe(top3, use_container_width=True, hide_index=True)
+    # Dynasty section
+    if dynasty_df is not None and not dynasty_df.empty:
+        st.divider()
+        st.subheader("🏰 Dynasty League Timeline")
+        dynasty_seasons = sorted(dynasty_df["season"].dropna().unique())
+        dynasty_champ_map = {}
+        for _, row in _championship_rows(dynasty_df).iterrows():
+            dynasty_champ_map[int(row["season"])] = row["champion"]
+        dynasty_scores = pd.concat([
+            dynasty_df[["season", "week", "team_a_owner", "points_a"]].rename(columns={"team_a_owner": "owner", "points_a": "pts"}),
+            dynasty_df[["season", "week", "team_b_owner", "points_b"]].rename(columns={"team_b_owner": "owner", "points_b": "pts"}),
+        ]).dropna(subset=["pts"])
+        for s in reversed(dynasty_seasons):
+            s = int(s)
+            champion = dynasty_champ_map.get(s, "—")
+            teams = len(dynasty_df[dynasty_df["season"] == s][["team_a_owner"]].drop_duplicates())
+            with st.expander(f"**{s}** — 🏆 {champion} · {teams} teams (dynasty)", expanded=False):
+                st.caption("Dynasty league season.")
 
 
 def _render_franchise_histories(conn, matchups_df: pd.DataFrame) -> None:
@@ -203,7 +233,8 @@ def _render_franchise_histories(conn, matchups_df: pd.DataFrame) -> None:
         })
 
     df = pd.DataFrame(rows).sort_values("W", ascending=False)
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    styled = style_dataframe(df, higher_is_better=["W", "Win%", "PF", "Playoffs", "Championships", "Seasons"], lower_is_better=["L"])
+    st.dataframe(styled, use_container_width=True, hide_index=True)
 
     st.divider()
     owners = sorted(career["owner"].dropna().unique())

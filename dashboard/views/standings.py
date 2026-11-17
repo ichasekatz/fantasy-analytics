@@ -15,7 +15,7 @@ import pandas as pd
 import numpy as np
 
 from fantasy.analytics.standings import all_play_records, career_standings, season_standings
-from utils import apply_league_filter
+from utils import apply_league_filter, style_dataframe
 
 
 def _avg_season_rank(matchups_df: pd.DataFrame, lid: str | None) -> pd.DataFrame:
@@ -173,7 +173,12 @@ def render(conn) -> None:
                 out["PF"] = out["PF"].round(1)
                 out["PA"] = out["PA"].round(1)
                 out["Avg PF"] = out["Avg PF"].round(1)
-                st.dataframe(out, use_container_width=True, hide_index=True)
+                styled = style_dataframe(
+                    out,
+                    higher_is_better=["H2H W", "Total W (inc. median)", "PF", "Avg PF", "Seasons"],
+                    lower_is_better=["H2H L"],
+                )
+                st.dataframe(styled, use_container_width=True, hide_index=True)
                 st.caption("H2H Win% excludes median matchup games for fair cross-season comparison.")
         else:
             standings = season_standings(matchups_df, selected_season)
@@ -192,7 +197,8 @@ def render(conn) -> None:
                 out["PF"] = out["PF"].round(2)
                 out["PA"] = out["PA"].round(2)
                 out["Avg PF"] = out["Avg PF"].round(1)
-                st.dataframe(out, use_container_width=True, hide_index=True)
+                styled = style_dataframe(out, higher_is_better=["W", "PF", "Avg PF"], lower_is_better=["L"])
+                st.dataframe(styled, use_container_width=True, hide_index=True)
 
     with tab2:
         if all_time:
@@ -238,7 +244,12 @@ def render(conn) -> None:
                     "seasons": "Seasons Played",
                     "season_list": "Seasons",
                 })
-                st.dataframe(out, use_container_width=True, hide_index=True)
+                styled = style_dataframe(
+                    out,
+                    higher_is_better=["Avg Pct Rank", "Avg Win%", "Seasons Played"],
+                    lower_is_better=["Avg Finish", "Best", "Worst"],
+                )
+                st.dataframe(styled, use_container_width=True, hide_index=True)
 
     if not all_time:
         _schedule_justice(matchups_df, selected_season, lid)

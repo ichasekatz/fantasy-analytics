@@ -11,7 +11,7 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
 
-from utils import apply_league_filter
+from utils import apply_league_filter, filter_redraft, is_dynasty_league, style_dataframe
 
 
 def render(conn) -> None:
@@ -22,23 +22,38 @@ def render(conn) -> None:
     """
     st.title("🏠 League Overview")
 
+    lid = st.session_state.get("selected_league_id")
+
     seasons_df = apply_league_filter(conn.execute("SELECT * FROM seasons ORDER BY season").df())
     seasons_df = seasons_df.drop_duplicates(subset=["season"])
     matchups_df = apply_league_filter(conn.execute("SELECT * FROM matchups").df())
 
+    # Exclude dynasty leagues when viewing All Leagues
+    if lid is None:
+        seasons_df = filter_redraft(seasons_df)
+        matchups_df = filter_redraft(matchups_df)
+
     # Champions
     st.subheader("🏆 Champions")
     champs = apply_league_filter(conn.execute("""
-        SELECT league_id, season, team_a_name AS champion, team_a_owner AS champion_owner,
-               team_b_name AS runner_up, team_b_owner AS runner_up_owner,
-               ROUND(points_a, 2) AS champion_pts, ROUND(points_b, 2) AS runner_up_pts,
-               ROUND(points_a - points_b, 2) AS margin
+        SELECT league_id, season,
+               CASE WHEN winner_team_id = team_a_id THEN team_a_name ELSE team_b_name END AS champion,
+               CASE WHEN winner_team_id = team_a_id THEN team_a_owner ELSE team_b_owner END AS champion_owner,
+               CASE WHEN winner_team_id = team_a_id THEN team_b_name ELSE team_a_name END AS runner_up,
+               CASE WHEN winner_team_id = team_a_id THEN team_b_owner ELSE team_a_owner END AS runner_up_owner,
+               CASE WHEN winner_team_id = team_a_id THEN ROUND(points_a, 2) ELSE ROUND(points_b, 2) END AS champion_pts,
+               CASE WHEN winner_team_id = team_a_id THEN ROUND(points_b, 2) ELSE ROUND(points_a, 2) END AS runner_up_pts,
+               ABS(ROUND(points_a - points_b, 2)) AS margin
         FROM matchups
         WHERE is_championship = TRUE
         ORDER BY season
     """).df())
+    if lid is None and "league_id" in champs.columns:
+        champs = champs[~champs["league_id"].apply(is_dynasty_league)]
+
     if not champs.empty:
-        st.dataframe(champs, use_container_width=True, hide_index=True)
+        styled_champs = style_dataframe(champs, higher_is_better=["champion_pts", "margin"], lower_is_better=["runner_up_pts"])
+        st.dataframe(styled_champs, use_container_width=True, hide_index=True)
     else:
         st.info("No championship matchup data available.")
 

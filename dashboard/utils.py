@@ -118,3 +118,46 @@ def apply_league_filter(df: pd.DataFrame) -> pd.DataFrame:
         df = df[~df["player"].isin(excluded)]
 
     return resolve_owner_names(df)
+
+
+# ---------------------------------------------------------------------------
+# Dynasty league helpers
+# ---------------------------------------------------------------------------
+
+_DYNASTY_LEAGUE_KEYWORDS = {"dynasty"}
+
+
+def is_dynasty_league(league_id: str) -> bool:
+    """Return True if league_id contains 'dynasty' (case-insensitive)."""
+    return any(kw in league_id.lower() for kw in _DYNASTY_LEAGUE_KEYWORDS)
+
+
+def filter_redraft(df: pd.DataFrame) -> pd.DataFrame:
+    """Remove dynasty league rows (used when no specific league is selected)."""
+    if "league_id" not in df.columns:
+        return df
+    return df[~df["league_id"].apply(is_dynasty_league)].copy()
+
+
+# ---------------------------------------------------------------------------
+# Color-coded dataframe styler
+# ---------------------------------------------------------------------------
+
+def style_dataframe(
+    df: pd.DataFrame,
+    higher_is_better: list[str] | None = None,
+    lower_is_better: list[str] | None = None,
+) -> "pd.io.formats.style.Styler":
+    """Apply RdYlGn background gradient to numeric columns.
+
+    higher_is_better: columns where green=high (wins, points, win%)
+    lower_is_better: columns where green=low (losses, finish rank)
+    """
+    styler = df.style
+    for col in (higher_is_better or []):
+        if col in df.columns and pd.api.types.is_numeric_dtype(df[col]):
+            styler = styler.background_gradient(cmap="RdYlGn", subset=[col], axis=0)
+    for col in (lower_is_better or []):
+        if col in df.columns and pd.api.types.is_numeric_dtype(df[col]):
+            styler = styler.background_gradient(cmap="RdYlGn_r", subset=[col], axis=0)
+    return styler
