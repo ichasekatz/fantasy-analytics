@@ -44,7 +44,7 @@ def render(conn) -> None:
         _render_by_season(rosters_df, draft_df)
 
     with tab3:
-        _render_categories(career)
+        _render_categories(career, rosters_df, draft_df)
 
 
 def _render_all_time(career) -> None:
@@ -115,7 +115,7 @@ def _hof_exclude_pos(p: object) -> bool:
     return bool(tokens & _HOF_CAT_EXCL) or is_defensive_position(str(p))
 
 
-def _render_categories(career) -> None:
+def _render_categories(career, rosters_df, draft_df) -> None:
     if st.checkbox("Exclude defensive players (IDP)", value=False, key="phof_cat_excl_def"):
         career = career[~career["position"].apply(_hof_exclude_pos)]
 
@@ -142,22 +142,35 @@ def _render_categories(career) -> None:
     st.divider()
     st.subheader("Franchise Cornerstones")
     st.caption(
-        "Players whose best owner scored ≥ 55% of their career fantasy points and "
-        "appeared in ≥ 2 seasons — truly built around one manager."
+        "Players whose best owner scored ≥ 55% of their fantasy points **within a single league** "
+        "and appeared in ≥ 3 seasons — truly built around one manager."
     )
-    if "best_owner_points" in career.columns:
-        _cs = career[career["total_started_points"] > 0].copy()
-        _cs["loyalty_pct"] = _cs["best_owner_points"] / _cs["total_started_points"]
-        cornerstones = _cs[(_cs["loyalty_pct"] >= 0.55) & (_cs["total_seasons"] >= 2)].sort_values("total_started_points", ascending=False).head(20)
-        cornerstones["Loyalty %"] = (cornerstones["loyalty_pct"] * 100).round(1)
-        _show_category(cornerstones, ["player", "position", "total_seasons", "total_started_points", "best_owner", "Loyalty %"],
+    # Compute cornerstones per-league so cross-league ownership doesn't dilute loyalty %
+    _cs_rows = []
+    for _lid, _ldf in rosters_df.groupby("league_id") if "league_id" in rosters_df.columns else [(None, rosters_df)]:
+        _dddf = draft_df[draft_df["league_id"] == _lid] if (_lid and "league_id" in draft_df.columns) else draft_df
+        _lc = player_career_stats(_ldf, _dddf)
+        if _lc.empty:
+            continue
+        if st.session_state.get("phof_cat_excl_def"):
+            _lc = _lc[~_lc["position"].apply(_hof_exclude_pos)]
+        if "best_owner_points" in _lc.columns:
+            _lc = _lc[_lc["total_started_points"] > 0].copy()
+            _lc["loyalty_pct"] = _lc["best_owner_points"] / _lc["total_started_points"]
+            _lc = _lc[(_lc["loyalty_pct"] >= 0.55) & (_lc["total_seasons"] >= 3)]
+            _lc["league_id_col"] = _lid
+            _cs_rows.append(_lc)
+    if _cs_rows:
+        import pandas as pd
+        _cs_all = pd.concat(_cs_rows, ignore_index=True)
+        # Keep best (highest started pts) entry per player
+        _cs_all = _cs_all.sort_values("total_started_points", ascending=False).drop_duplicates(subset=["player"]).head(20)
+        _cs_all["Loyalty %"] = (_cs_all["loyalty_pct"] * 100).round(1)
+        _show_category(_cs_all, ["player", "position", "total_seasons", "total_started_points", "best_owner", "Loyalty %"],
                        {"player": "Player", "position": "Pos", "total_seasons": "Seasons", "total_started_points": "Started Pts", "best_owner": "Owner"},
                        higher_is_better=["Seasons", "Started Pts", "Loyalty %"])
     else:
-        cornerstones = career[(career["total_managers"] <= 2) & (career["total_seasons"] >= 3)].sort_values("total_started_points", ascending=False).head(20)
-        _show_category(cornerstones, ["player", "position", "total_managers", "total_seasons", "total_started_points", "best_owner"],
-                       {"player": "Player", "position": "Pos", "total_managers": "Managers", "total_seasons": "Seasons", "total_started_points": "Started Pts", "best_owner": "Owner"},
-                       higher_is_better=["Seasons", "Started Pts"], lower_is_better=["Managers"])
+        st.info("No franchise cornerstones found.")
 
 
 def _show_category(df, cols, rename, higher_is_better=None, lower_is_better=None) -> None:
