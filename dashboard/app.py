@@ -26,9 +26,14 @@ _leagues_config_path = _project_root / "config" / "leagues.json"
 
 @st.cache_resource
 def _init_db():
-    """Initialize and populate the DB once; close write connection when done."""
+    """Initialize and populate the DB once; checkpoint + close write connection when done."""
+    _db_path.parent.mkdir(parents=True, exist_ok=True)
     source = _export_path if _export_path.exists() else _original_export
     conn = load_from_export(source, _db_path)
+    try:
+        conn.execute("CHECKPOINT")  # flush WAL so read_only connections can open
+    except Exception:
+        pass
     conn.close()
 
 
