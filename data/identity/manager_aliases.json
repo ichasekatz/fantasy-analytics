@@ -101,22 +101,6 @@
       ]
     },
     {
-      "canonical_id": "cm_9a036f25",
-      "display_name": "Ichasekatz",
-      "aliases": [
-        {
-          "league_id": "jds-league-2026",
-          "raw_owner_id": "34e01e65-27ae-4724-9a71-acda9cce128a",
-          "raw_name": "Ichasekatz"
-        },
-        {
-          "league_id": "more-dabo-please",
-          "raw_owner_id": "911326d3-993f-43ea-97cd-9bfaa69f828d",
-          "raw_name": "Ichasekatz"
-        }
-      ]
-    },
-    {
       "canonical_id": "cm_6e40acd0",
       "display_name": "Jason Mott",
       "aliases": [
@@ -420,6 +404,16 @@
           "league_id": "foxs-pizza-den-dynasty",
           "raw_owner_id": "074b4dc5-fc76-4647-8e38-b94990eaed0c",
           "raw_name": "ichasekatz"
+        },
+        {
+          "league_id": "jds-league-2026",
+          "raw_owner_id": "34e01e65-27ae-4724-9a71-acda9cce128a",
+          "raw_name": "Ichasekatz"
+        },
+        {
+          "league_id": "more-dabo-please",
+          "raw_owner_id": "911326d3-993f-43ea-97cd-9bfaa69f828d",
+          "raw_name": "Ichasekatz"
         }
       ]
     },
