@@ -294,6 +294,7 @@ def best_picks_ever(
     rosters_df: pd.DataFrame,
     league_id: str | None = None,
     top_n: int = 25,
+    adp_adjusted: bool = False,
 ) -> pd.DataFrame:
     """Top N best draft picks in league history by VORP.
 
@@ -319,7 +320,8 @@ def best_picks_ever(
         return pd.DataFrame()
 
     combined = pd.concat(all_rows, ignore_index=True)
-    combined = combined.sort_values("vorp", ascending=False).head(top_n).reset_index(drop=True)
+    sort_col = "value_above_expected" if adp_adjusted and "value_above_expected" in combined.columns else "vorp"
+    combined = combined.dropna(subset=[sort_col]).sort_values(sort_col, ascending=False).head(top_n).reset_index(drop=True)
     combined["rank"] = combined.index + 1
     return combined
 
@@ -329,6 +331,7 @@ def worst_picks_ever(
     rosters_df: pd.DataFrame,
     league_id: str | None = None,
     top_n: int = 25,
+    adp_adjusted: bool = False,
 ) -> pd.DataFrame:
     """Top N worst draft picks (biggest busts) in league history by VORP.
 
@@ -357,6 +360,7 @@ def worst_picks_ever(
 
     combined = pd.concat(all_rows, ignore_index=True)
     combined = combined[~combined["keeper"]].copy()
-    combined = combined.sort_values("vorp", ascending=True).head(top_n).reset_index(drop=True)
+    sort_col = "value_above_expected" if adp_adjusted and "value_above_expected" in combined.columns else "vorp"
+    combined = combined.dropna(subset=[sort_col]).sort_values(sort_col, ascending=True).head(top_n).reset_index(drop=True)
     combined["rank"] = combined.index + 1
     return combined

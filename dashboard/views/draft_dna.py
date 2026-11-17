@@ -418,7 +418,6 @@ def _render_pick_value_map(
 
 def _render_best_picks(draft_df: pd.DataFrame, rosters_df: pd.DataFrame, lid: str | None) -> None:
     st.subheader("Best Draft Picks in League History")
-    st.caption("Top picks by VORP — the most valuable selections relative to replacement level.")
 
     _seasons = sorted(draft_df["season"].dropna().unique())
     _rounds = sorted(draft_df["round"].dropna().unique().astype(int)) if "round" in draft_df.columns else []
@@ -429,32 +428,39 @@ def _render_best_picks(draft_df: pd.DataFrame, rosters_df: pd.DataFrame, lid: st
         sel_yr = st.selectbox("Season", ["All Time"] + [str(s) for s in _seasons], key="best_picks_yr")
     with col3:
         sel_rd = st.selectbox("Round", ["All Rounds"] + [f"Round {r}" for r in _rounds], key="best_picks_rd")
+    adp_adj = st.checkbox(
+        "Account for ADP (rank by value above expected pick slot)",
+        value=False, key="best_picks_adp",
+        help="Off: sorts by raw VORP (best absolute performers). On: sorts by VORP minus expected VORP at that pick — true steals.",
+    )
+    st.caption("**ADP off:** best absolute performers. **ADP on:** biggest steals relative to where they were drafted." if adp_adj else "**ADP off:** best absolute performers. **ADP on:** biggest steals relative to where they were drafted.")
     _df = draft_df if sel_yr == "All Time" else draft_df[draft_df["season"] == int(sel_yr)]
     if sel_rd != "All Rounds":
         _rnd = int(sel_rd.split()[-1])
         _df = _df[_df["round"] == _rnd]
     _rdf = rosters_df if sel_yr == "All Time" else rosters_df[rosters_df["season"] == int(sel_yr)] if "season" in rosters_df.columns else rosters_df
-    best = best_picks_ever(_df, _rdf, league_id=lid, top_n=top_n)
+    best = best_picks_ever(_df, _rdf, league_id=lid, top_n=top_n, adp_adjusted=adp_adj)
 
     if best.empty:
         st.info("No data.")
         return
 
-    cols = [c for c in ["rank", "season", "overall", "round", "owner_name", "player", "position", "vorp", "total_points"] if c in best.columns]
-    display = best[cols].rename(columns={
-        "rank": "#", "season": "Season", "overall": "Pick", "round": "Rd",
-        "owner_name": "Owner", "player": "Player", "position": "Pos",
-        "vorp": "VORP", "total_points": "Total Pts",
-    })
-    for col in ["VORP", "Total Pts"]:
+    extra_cols = ["value_above_expected"] if adp_adj else []
+    cols = [c for c in ["rank", "season", "overall", "round", "owner_name", "player", "position", "vorp", "total_points"] + extra_cols if c in best.columns]
+    rename = {"rank": "#", "season": "Season", "overall": "Pick", "round": "Rd",
+               "owner_name": "Owner", "player": "Player", "position": "Pos",
+               "vorp": "VORP", "total_points": "Total Pts", "value_above_expected": "Val vs Expected"}
+    display = best[cols].rename(columns=rename)
+    for col in ["VORP", "Total Pts", "Val vs Expected"]:
         if col in display.columns:
             display[col] = display[col].round(1)
-    st.dataframe(style_dataframe(display, higher_is_better=["VORP", "Total Pts"]), use_container_width=True, hide_index=True)
+    hi = ["VORP", "Total Pts"] + (["Val vs Expected"] if adp_adj else [])
+    st.dataframe(style_dataframe(display, higher_is_better=hi), use_container_width=True, hide_index=True)
 
 
 def _render_worst_picks(draft_df: pd.DataFrame, rosters_df: pd.DataFrame, lid: str | None) -> None:
     st.subheader("Worst Draft Picks in League History")
-    st.caption("Top busts by VORP — the most disappointing selections. Keepers excluded.")
+    st.caption("Keepers excluded.")
 
     _seasons = sorted(draft_df["season"].dropna().unique())
     _rounds = sorted(draft_df["round"].dropna().unique().astype(int)) if "round" in draft_df.columns else []
@@ -465,24 +471,30 @@ def _render_worst_picks(draft_df: pd.DataFrame, rosters_df: pd.DataFrame, lid: s
         sel_yr = st.selectbox("Season", ["All Time"] + [str(s) for s in _seasons], key="worst_picks_yr")
     with col3:
         sel_rd = st.selectbox("Round", ["All Rounds"] + [f"Round {r}" for r in _rounds], key="worst_picks_rd")
+    adp_adj = st.checkbox(
+        "Account for ADP (rank by value below expected pick slot)",
+        value=False, key="worst_picks_adp",
+        help="Off: sorts by raw VORP (biggest absolute busts). On: sorts by VORP minus expected VORP at that pick — biggest disappointments relative to draft slot.",
+    )
     _df = draft_df if sel_yr == "All Time" else draft_df[draft_df["season"] == int(sel_yr)]
     if sel_rd != "All Rounds":
         _rnd = int(sel_rd.split()[-1])
         _df = _df[_df["round"] == _rnd]
     _rdf = rosters_df if sel_yr == "All Time" else rosters_df[rosters_df["season"] == int(sel_yr)] if "season" in rosters_df.columns else rosters_df
-    worst = worst_picks_ever(_df, _rdf, league_id=lid, top_n=top_n)
+    worst = worst_picks_ever(_df, _rdf, league_id=lid, top_n=top_n, adp_adjusted=adp_adj)
 
     if worst.empty:
         st.info("No data.")
         return
 
-    cols = [c for c in ["rank", "season", "overall", "round", "owner_name", "player", "position", "vorp", "total_points"] if c in worst.columns]
-    display = worst[cols].rename(columns={
-        "rank": "#", "season": "Season", "overall": "Pick", "round": "Rd",
-        "owner_name": "Owner", "player": "Player", "position": "Pos",
-        "vorp": "VORP", "total_points": "Total Pts",
-    })
-    for col in ["VORP", "Total Pts"]:
+    extra_cols = ["value_above_expected"] if adp_adj else []
+    cols = [c for c in ["rank", "season", "overall", "round", "owner_name", "player", "position", "vorp", "total_points"] + extra_cols if c in worst.columns]
+    rename = {"rank": "#", "season": "Season", "overall": "Pick", "round": "Rd",
+               "owner_name": "Owner", "player": "Player", "position": "Pos",
+               "vorp": "VORP", "total_points": "Total Pts", "value_above_expected": "Val vs Expected"}
+    display = worst[cols].rename(columns=rename)
+    for col in ["VORP", "Total Pts", "Val vs Expected"]:
         if col in display.columns:
             display[col] = display[col].round(1)
-    st.dataframe(style_dataframe(display, higher_is_better=["Total Pts"], lower_is_better=["VORP"]), use_container_width=True, hide_index=True)
+    lo = ["VORP"] + (["Val vs Expected"] if adp_adj else [])
+    st.dataframe(style_dataframe(display, higher_is_better=["Total Pts"], lower_is_better=lo), use_container_width=True, hide_index=True)
