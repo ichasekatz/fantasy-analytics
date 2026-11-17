@@ -11,6 +11,8 @@ build/
 # DuckDB — regenerated from JSON at startup; never commit binary DB
 data/database/*.db
 data/database/*.db.wal
+data/database/*.duckdb
+data/database/*.duckdb.wal
 
 # Streamlit
 .streamlit/secrets.toml

@@ -162,6 +162,59 @@ def merge_owners(
     return registry, new_id
 
 
+def auto_sync_exact_names(owners_df: pd.DataFrame, registry: dict) -> tuple[dict, int]:
+    """Auto-merge owners with identical names across different leagues.
+
+    Finds all (name, league_id) pairs where the same name appears in 2+ leagues
+    and no canonical entry already covers all of them. Creates canonical entries
+    automatically so the same person is tracked as one manager.
+
+    Args:
+        owners_df (pd.DataFrame): Owners DataFrame with columns: league_id, owner_id, name.
+        registry (dict): Loaded registry dict (mutated in place).
+
+    Returns:
+        (updated_registry, num_new_merges) tuple.
+    """
+    name_col = "raw_name" if "raw_name" in owners_df.columns else "name"
+    id_col = "raw_owner_id" if "raw_owner_id" in owners_df.columns else "owner_id"
+    league_col = "league_id"
+
+    if name_col not in owners_df.columns or league_col not in owners_df.columns:
+        return registry, 0
+
+    # Build existing lookup: (league_id, owner_id) → canonical_id
+    existing: dict[tuple[str, str], str] = {}
+    for manager in registry.get("canonical_managers", []):
+        for alias in manager.get("aliases", []):
+            existing[(alias.get("league_id", ""), alias.get("raw_owner_id", ""))] = manager["canonical_id"]
+
+    # Group by exact name (case-sensitive)
+    grouped = owners_df.groupby(name_col).apply(
+        lambda g: g[[league_col, id_col]].drop_duplicates().to_dict("records")
+    )
+
+    num_new = 0
+    for name, rows in grouped.items():
+        if len(rows) < 2:
+            continue  # only appears in one league/entry — nothing to merge
+
+        # Check if all already share a canonical_id
+        canonical_ids = {existing.get((r[league_col], r[id_col])) for r in rows}
+        canonical_ids.discard(None)
+        if len(canonical_ids) == 1:
+            continue  # already merged
+
+        aliases = [
+            {"league_id": r[league_col], "raw_owner_id": r[id_col], "raw_name": str(name)}
+            for r in rows
+        ]
+        registry, _ = merge_owners(registry, aliases, str(name))
+        num_new += 1
+
+    return registry, num_new
+
+
 def auto_suggest_merges(owners_df: pd.DataFrame) -> list[dict]:
     """Fuzzy-match owner names across leagues and within the same league to find duplicates.
 

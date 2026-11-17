@@ -7,7 +7,10 @@ from pathlib import Path
 import duckdb
 import pandas as pd
 
+from fantasy.identity.registry import auto_sync_exact_names, load_registry, save_registry
 from fantasy.ingestion.load_export import load_all_leagues, load_export
+
+_identity_path = Path(__file__).parents[3] / "data" / "identity" / "manager_aliases.json"
 
 _db_dir = Path(__file__).parents[4] / "data" / "database"
 _default_db_path = _db_dir / "fantasy.duckdb"
@@ -48,6 +51,49 @@ def initialize_database(conn: duckdb.DuckDBPyConnection, frames: dict[str, pd.Da
         conn.execute(f"CREATE TABLE {name} AS SELECT * FROM df")
 
     _ensure_identity_tables(conn)
+    _remove_ghost_owners(conn)
+    _auto_sync_names(conn)
+
+
+def _remove_ghost_owners(conn: duckdb.DuckDBPyConnection) -> None:
+    """Delete owners with no matchups, draft picks, or roster entries.
+
+    These are placeholder entries in the export that never played a game.
+
+    Args:
+        conn (duckdb.DuckDBPyConnection): Open DuckDB connection.
+    """
+    conn.execute("""
+        DELETE FROM owners
+        WHERE name NOT IN (
+            SELECT DISTINCT team_a_owner FROM matchups WHERE team_a_owner IS NOT NULL
+            UNION
+            SELECT DISTINCT team_b_owner FROM matchups WHERE team_b_owner IS NOT NULL
+            UNION
+            SELECT DISTINCT owner_name FROM draft_picks WHERE owner_name IS NOT NULL
+            UNION
+            SELECT DISTINCT owner_name FROM rosters WHERE owner_name IS NOT NULL
+        )
+    """)
+
+
+def _auto_sync_names(conn: duckdb.DuckDBPyConnection) -> None:
+    """Merge owners with identical names across leagues into one canonical profile.
+
+    Runs silently on every data load. Saves any new merges to the registry file
+    and updates the identity tables in the connection.
+
+    Args:
+        conn (duckdb.DuckDBPyConnection): Open DuckDB connection.
+    """
+    if not _identity_path.exists():
+        return
+    owners_df = conn.execute("SELECT * FROM owners").df()
+    registry = load_registry(_identity_path)
+    updated, num_new = auto_sync_exact_names(owners_df, registry)
+    if num_new > 0:
+        save_registry(updated, _identity_path)
+        update_identity_tables(conn, updated)
 
 
 def _ensure_identity_tables(conn: duckdb.DuckDBPyConnection) -> None:
@@ -171,6 +217,18 @@ def load_from_export(export_path: Path, db_path: Path = _default_db_path) -> duc
         cols = {r[0] for r in conn.execute("DESCRIBE matchups").fetchall()}
         if "league_id" not in cols:
             needs_reload = True
+
+    if not needs_reload:
+        # Rebuild if the number of registered leagues differs from what's in the DB
+        try:
+            import json
+            _cfg_path = Path(__file__).parents[3] / "config" / "leagues.json"
+            cfg_leagues = {e["league_id"] for e in json.loads(_cfg_path.read_text()).get("leagues", [])}
+            db_leagues = {r[0] for r in conn.execute("SELECT DISTINCT league_id FROM matchups").fetchall()}
+            if cfg_leagues != db_leagues:
+                needs_reload = True
+        except Exception:
+            pass
 
     if needs_reload:
         try:

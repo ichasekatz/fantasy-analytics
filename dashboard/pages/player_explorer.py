@@ -84,10 +84,8 @@ def render(conn) -> None:
     raw_drafts = _load_draft_picks(conn)
     rosters_df, draft_df = _apply_registry_cached(raw_rosters, raw_drafts)
 
-    league_id: str | None = st.session_state.get("selected_league_id")
-    if league_id:
-        rosters_df = rosters_df[rosters_df["league_id"] == league_id]
-        draft_df = draft_df[draft_df["league_id"] == league_id]
+    # Player Explorer is cross-league by design — sidebar filter ignored here.
+    # Users can filter by season or position within the page instead.
 
     all_names = sorted(rosters_df["player"].unique())
     seasons = sorted(rosters_df["season"].unique())

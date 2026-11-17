@@ -176,6 +176,64 @@ def lineup_efficiency_summary(
     return agg.join(seasons_played, on="owner").reset_index(drop=True)
 
 
+def lineup_decision_quality(
+    rosters_df: pd.DataFrame,
+    season: int | None = None,
+    league_id: str | None = None,
+) -> pd.DataFrame:
+    """Per manager-week: actual score, optimal score, missed points, and letter grade.
+
+    Returns:
+        DataFrame with columns: league_id, season, week, owner, team_name,
+        actual_score, optimal_score, missed_points, missed_pct, num_starters, decision_grade.
+    """
+    empty = pd.DataFrame(
+        columns=["league_id", "season", "week", "owner", "team_name",
+                 "actual_score", "optimal_score", "missed_points", "missed_pct",
+                 "num_starters", "decision_grade"]
+    )
+    eff = lineup_efficiency(rosters_df, season, league_id)
+    if eff.empty:
+        return empty
+
+    df = eff.rename(columns={
+        "actual_points": "actual_score",
+        "optimal_points": "optimal_score",
+        "points_left_on_bench": "missed_points",
+    }).copy()
+
+    df["missed_pct"] = (
+        (df["missed_points"] / df["optimal_score"])
+        .where(df["optimal_score"] > 0, other=0.0)
+        .round(3)
+    )
+
+    starters_count = (
+        rosters_df[rosters_df["starter"] == True]  # noqa: E712
+        .groupby(["league_id", "season", "week", "owner_name"])
+        .size()
+        .rename("num_starters")
+        .reset_index()
+        .rename(columns={"owner_name": "owner"})
+    )
+    df = df.merge(starters_count, on=["league_id", "season", "week", "owner"], how="left")
+    df["num_starters"] = df["num_starters"].fillna(0).astype(int)
+
+    def _grade(missed: float) -> str:
+        if missed < 5:
+            return "A"
+        if missed < 15:
+            return "B"
+        if missed < 30:
+            return "C"
+        return "D"
+
+    df["decision_grade"] = df["missed_points"].apply(_grade)
+    return df[["league_id", "season", "week", "owner", "team_name",
+               "actual_score", "optimal_score", "missed_points", "missed_pct",
+               "num_starters", "decision_grade"]]
+
+
 def bench_strength(
     rosters_df: pd.DataFrame,
     season: int | None = None,

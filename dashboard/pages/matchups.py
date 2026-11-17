@@ -2,8 +2,15 @@
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
 import pandas as pd
 import streamlit as st
+
+sys.path.insert(0, str(Path(__file__).parents[1]))
+
+from utils import apply_league_filter
 
 
 def render(conn) -> None:
@@ -14,8 +21,9 @@ def render(conn) -> None:
     """
     st.title("📅 Matchup Browser")
 
-    matchups_df = conn.execute("SELECT * FROM matchups ORDER BY season, week").df()
-    seasons_df = conn.execute("SELECT season, provider FROM seasons ORDER BY season").df()
+    matchups_df = apply_league_filter(conn.execute("SELECT * FROM matchups ORDER BY season, week").df())
+    seasons_df = apply_league_filter(conn.execute("SELECT season, provider FROM seasons ORDER BY season").df())
+    seasons_df = seasons_df.drop_duplicates(subset=["season"])
 
     seasons = sorted(matchups_df["season"].unique())
     provider_map = dict(zip(seasons_df["season"], seasons_df["provider"], strict=False))

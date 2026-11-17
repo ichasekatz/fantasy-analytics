@@ -1,0 +1,85 @@
+"""Shared dashboard utilities."""
+
+from __future__ import annotations
+
+import json
+from functools import lru_cache
+from pathlib import Path
+
+import pandas as pd
+import streamlit as st
+
+_project_root = Path(__file__).parents[1]
+_leagues_config_path = _project_root / "config" / "leagues.json"
+
+
+@lru_cache(maxsize=1)
+def _load_leagues_config_cached(mtime: float) -> dict:
+    """Load leagues.json, keyed by mtime so edits invalidate the cache."""
+    try:
+        return json.loads(_leagues_config_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {"leagues": []}
+
+
+def _leagues_config() -> dict:
+    mtime = _leagues_config_path.stat().st_mtime if _leagues_config_path.exists() else 0.0
+    return _load_leagues_config_cached(mtime)
+
+
+def _season_filter_for(league_id: str) -> list[int] | None:
+    """Return the season_filter list for a league, or None if all seasons included."""
+    for entry in _leagues_config().get("leagues", []):
+        if entry["league_id"] == league_id:
+            return entry.get("season_filter")  # None = all seasons
+    return None
+
+
+def _primary_league_ids() -> set[str]:
+    """Return league_ids where primary is True (or unset, which defaults to True)."""
+    return {
+        e["league_id"]
+        for e in _leagues_config().get("leagues", [])
+        if e.get("primary", True)
+    }
+
+
+def apply_league_filter(df: pd.DataFrame) -> pd.DataFrame:
+    """Filter DataFrame by selected league, season_filter, and excluded players.
+
+    Applies layers in order:
+    1. If a specific league is selected: filter to that league_id + its season_filter.
+    2. If "All Leagues" (no selection): exclude non-primary leagues to prevent
+       double-counting sub-views (e.g. The Big Leagues overlapping with Bigwells).
+    3. Player exclusions from session state (always applied).
+
+    Args:
+        df: Any DataFrame that may have league_id / season / player columns.
+
+    Returns:
+        Filtered copy, or original if nothing applies.
+    """
+    lid: str | None = st.session_state.get("selected_league_id")
+
+    if lid and "league_id" in df.columns:
+        # Specific league selected
+        df = df[df["league_id"] == lid].copy()
+
+        # Apply that league's season_filter
+        if "season" in df.columns:
+            season_filter = _season_filter_for(lid)
+            if season_filter is not None:
+                df = df[df["season"].isin(season_filter)]
+
+    elif "league_id" in df.columns:
+        # All Leagues: drop non-primary sub-views to avoid double-counting
+        primary_ids = _primary_league_ids()
+        if primary_ids:
+            df = df[df["league_id"].isin(primary_ids)].copy()
+
+    # Player exclusions (session-only, always applied)
+    excluded: list[str] = st.session_state.get("excluded_players", [])
+    if excluded and "player" in df.columns:
+        df = df[~df["player"].isin(excluded)]
+
+    return df

@@ -11,7 +11,7 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
 
 from fantasy.database.db import update_identity_tables
-from fantasy.identity.registry import auto_suggest_merges, load_registry, merge_owners, save_registry
+from fantasy.identity.registry import auto_suggest_merges, auto_sync_exact_names, load_registry, merge_owners, save_registry
 
 _identity_path = Path(__file__).parents[2] / "data" / "identity" / "manager_aliases.json"
 
@@ -60,6 +60,8 @@ def render(conn) -> None:
     st.title("🪪 Manager Identity")
     st.caption("Merge duplicate owner profiles across leagues or seasons into one canonical manager.")
 
+    _auto_sync_on_load(conn)
+
     tab_all, tab_merge, tab_auto = st.tabs(["All Managers", "Merge Profiles", "Auto-Suggestions"])
 
     with tab_all:
@@ -70,6 +72,18 @@ def render(conn) -> None:
 
     with tab_auto:
         _render_auto_suggestions(conn)
+
+
+def _auto_sync_on_load(conn) -> None:
+    """Run exact-name sync automatically and persist if any new merges found."""
+    owners_df = conn.execute("SELECT * FROM owners").df()
+    registry = _get_registry()
+    updated, num_new = auto_sync_exact_names(owners_df, registry)
+    if num_new > 0:
+        save_registry(updated, _identity_path)
+        update_identity_tables(conn, updated)
+        st.cache_data.clear()
+        st.toast(f"Auto-synced {num_new} exact-name match(es) across leagues.", icon="✅")
 
 
 def _render_all_managers(conn) -> None:

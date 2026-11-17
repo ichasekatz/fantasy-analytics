@@ -8,10 +8,12 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+sys.path.insert(0, str(Path(__file__).parents[1]))
 sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
 
 from fantasy.identity.enrichment import enrich_matchups
 from fantasy.identity.registry import load_registry
+from utils import apply_league_filter
 
 _identity_path = Path(__file__).parents[2] / "data" / "identity" / "manager_aliases.json"
 
@@ -27,12 +29,8 @@ def render(conn) -> None:
     """
     st.title("⚔️ Head-to-Head")
 
-    league_id: str | None = st.session_state.get("selected_league_id")
     registry = load_registry(_identity_path)
-    matchups_df = conn.execute("SELECT * FROM matchups ORDER BY season, week").df()
-
-    if league_id and "league_id" in matchups_df.columns:
-        matchups_df = matchups_df[matchups_df["league_id"] == league_id].copy()
+    matchups_df = apply_league_filter(conn.execute("SELECT * FROM matchups ORDER BY season, week").df())
 
     enriched = enrich_matchups(matchups_df, registry)
 

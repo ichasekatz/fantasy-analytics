@@ -72,7 +72,7 @@ def luck_metrics(matchups_df: pd.DataFrame, season: int, league_id: str | None =
         return pd.DataFrame()
 
     merged = actual.merge(exp[["team_id", "expected_wins"]], on="team_id", how="left")
-    merged["luck_delta"] = merged["wins"] - merged["expected_wins"]
+    merged["luck_delta"] = merged["h2h_wins"] - merged["expected_wins"]
 
     # Schedule difficulty: avg opponent points
     df = _regular_season(matchups_df, season, league_id)
@@ -85,5 +85,5 @@ def luck_metrics(matchups_df: pd.DataFrame, season: int, league_id: str | None =
     sched_diff = {tid: sum(pts) / len(pts) for tid, pts in opp_pts.items() if pts}
     merged["schedule_difficulty"] = merged["team_id"].map(sched_diff)
 
-    cols = ["owner", "team", "wins", "expected_wins", "luck_delta", "schedule_difficulty"]
-    return merged[cols].rename(columns={"wins": "actual_wins"}).sort_values("luck_delta", ascending=False).reset_index(drop=True)
+    cols = ["owner", "team", "h2h_wins", "expected_wins", "luck_delta", "schedule_difficulty"]
+    return merged[cols].rename(columns={"h2h_wins": "actual_wins"}).sort_values("luck_delta", ascending=False).reset_index(drop=True)

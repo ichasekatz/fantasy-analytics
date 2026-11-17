@@ -1,1 +1,551 @@
-{"canonical_managers": []}
+{
+  "canonical_managers": [
+    {
+      "canonical_id": "cm_d04fac72",
+      "display_name": "Aidan Bender",
+      "aliases": [
+        {
+          "league_id": "bigwells-leaguern",
+          "raw_owner_id": "e104840f-6fe6-440e-bcb7-ece26346f534",
+          "raw_name": "Aidan Bender"
+        },
+        {
+          "league_id": "the-big-leagues",
+          "raw_owner_id": "e104840f-6fe6-440e-bcb7-ece26346f534",
+          "raw_name": "Aidan Bender"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cm_50c89053",
+      "display_name": "AnthonyKerr",
+      "aliases": [
+        {
+          "league_id": "bigwells-leaguern",
+          "raw_owner_id": "394ebdd7-b0c3-4f3d-ba8f-2fd620ba5b27",
+          "raw_name": "AnthonyKerr"
+        },
+        {
+          "league_id": "the-big-leagues",
+          "raw_owner_id": "394ebdd7-b0c3-4f3d-ba8f-2fd620ba5b27",
+          "raw_name": "AnthonyKerr"
+        },
+        {
+          "league_id": "foxs-pizza-den-dynasty",
+          "raw_owner_id": "c4824a8c-a3c8-42de-9e08-73630e3ec139",
+          "raw_name": "AnthonyKerr"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cm_386cbf64",
+      "display_name": "Brandon Atwood",
+      "aliases": [
+        {
+          "league_id": "bigwells-leaguern",
+          "raw_owner_id": "a4e22465-f1d6-49a9-8245-b7ded01b737b",
+          "raw_name": "Brandon Atwood"
+        },
+        {
+          "league_id": "the-big-leagues",
+          "raw_owner_id": "a4e22465-f1d6-49a9-8245-b7ded01b737b",
+          "raw_name": "Brandon Atwood"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cm_4fe2ee4e",
+      "display_name": "Colton Horton",
+      "aliases": [
+        {
+          "league_id": "bigwells-leaguern",
+          "raw_owner_id": "d537e804-3020-45dc-b5bf-8dd820138aae",
+          "raw_name": "Colton Horton"
+        },
+        {
+          "league_id": "the-big-leagues",
+          "raw_owner_id": "d537e804-3020-45dc-b5bf-8dd820138aae",
+          "raw_name": "Colton Horton"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cm_3f031f0b",
+      "display_name": "Harrypalumbo",
+      "aliases": [
+        {
+          "league_id": "bigwells-leaguern",
+          "raw_owner_id": "8955b200-c8cc-4c93-97dd-adf17d18c73f",
+          "raw_name": "Harrypalumbo"
+        },
+        {
+          "league_id": "the-big-leagues",
+          "raw_owner_id": "8955b200-c8cc-4c93-97dd-adf17d18c73f",
+          "raw_name": "Harrypalumbo"
+        },
+        {
+          "league_id": "foxs-pizza-den-dynasty",
+          "raw_owner_id": "06e7fd2b-e4f9-49b1-8a99-dc26e4704284",
+          "raw_name": "Harrypalumbo"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cm_9a036f25",
+      "display_name": "Ichasekatz",
+      "aliases": [
+        {
+          "league_id": "jds-league-2026",
+          "raw_owner_id": "34e01e65-27ae-4724-9a71-acda9cce128a",
+          "raw_name": "Ichasekatz"
+        },
+        {
+          "league_id": "more-dabo-please",
+          "raw_owner_id": "911326d3-993f-43ea-97cd-9bfaa69f828d",
+          "raw_name": "Ichasekatz"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cm_6e40acd0",
+      "display_name": "Jason Mott",
+      "aliases": [
+        {
+          "league_id": "bigwells-leaguern",
+          "raw_owner_id": "14853623-72c5-4dfc-aced-0c669be30561",
+          "raw_name": "Jason Mott"
+        },
+        {
+          "league_id": "the-big-leagues",
+          "raw_owner_id": "14853623-72c5-4dfc-aced-0c669be30561",
+          "raw_name": "Jason Mott"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cm_70709d68",
+      "display_name": "John Palumbo",
+      "aliases": [
+        {
+          "league_id": "bigwells-leaguern",
+          "raw_owner_id": "34e8de3e-d74b-41ec-8e48-b7a2070eade3",
+          "raw_name": "John Palumbo"
+        },
+        {
+          "league_id": "the-big-leagues",
+          "raw_owner_id": "34e8de3e-d74b-41ec-8e48-b7a2070eade3",
+          "raw_name": "John Palumbo"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cm_66e7edc1",
+      "display_name": "Johnathan Knoll",
+      "aliases": [
+        {
+          "league_id": "bigwells-leaguern",
+          "raw_owner_id": "910ebc16-21b6-47ef-b6b7-11be15aa829d",
+          "raw_name": "Johnathan Knoll"
+        },
+        {
+          "league_id": "the-big-leagues",
+          "raw_owner_id": "910ebc16-21b6-47ef-b6b7-11be15aa829d",
+          "raw_name": "Johnathan Knoll"
+        },
+        {
+          "league_id": "more-dabo-please",
+          "raw_owner_id": "b1656aad-d07b-434d-81d0-02e30e19a95d",
+          "raw_name": "Johnathan Knoll"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cm_111be1cc",
+      "display_name": "Jonah Grettler",
+      "aliases": [
+        {
+          "league_id": "bigwells-leaguern",
+          "raw_owner_id": "a46bb220-f644-4178-9222-ef45917b083f",
+          "raw_name": "Jonah Grettler"
+        },
+        {
+          "league_id": "the-big-leagues",
+          "raw_owner_id": "a46bb220-f644-4178-9222-ef45917b083f",
+          "raw_name": "Jonah Grettler"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cm_dd3a0879",
+      "display_name": "Joshua Enfield",
+      "aliases": [
+        {
+          "league_id": "bigwells-leaguern",
+          "raw_owner_id": "e0c3fc2f-365f-4769-9070-2159c0648fc6",
+          "raw_name": "Joshua Enfield"
+        },
+        {
+          "league_id": "the-big-leagues",
+          "raw_owner_id": "e0c3fc2f-365f-4769-9070-2159c0648fc6",
+          "raw_name": "Joshua Enfield"
+        },
+        {
+          "league_id": "jds-league-2026",
+          "raw_owner_id": "6abfc6a9-f2b0-4534-8e72-a9009c39e372",
+          "raw_name": "Joshua Enfield"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cm_344f4d4d",
+      "display_name": "Mark Gonzales",
+      "aliases": [
+        {
+          "league_id": "bigwells-leaguern",
+          "raw_owner_id": "c4de4512-271e-443f-90ca-42528e9703f6",
+          "raw_name": "Mark Gonzales"
+        },
+        {
+          "league_id": "the-big-leagues",
+          "raw_owner_id": "c4de4512-271e-443f-90ca-42528e9703f6",
+          "raw_name": "Mark Gonzales"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cm_444b6b0d",
+      "display_name": "Matthew Leonard",
+      "aliases": [
+        {
+          "league_id": "bigwells-leaguern",
+          "raw_owner_id": "3b135b8b-453a-4969-97fa-5992796a1b9b",
+          "raw_name": "Matthew Leonard"
+        },
+        {
+          "league_id": "the-big-leagues",
+          "raw_owner_id": "3b135b8b-453a-4969-97fa-5992796a1b9b",
+          "raw_name": "Matthew Leonard"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cm_66bf114b",
+      "display_name": "Michaeldelfino820",
+      "aliases": [
+        {
+          "league_id": "bigwells-leaguern",
+          "raw_owner_id": "1f4e5add-5147-458d-9372-4b6127de7f87",
+          "raw_name": "Michaeldelfino820"
+        },
+        {
+          "league_id": "the-big-leagues",
+          "raw_owner_id": "1f4e5add-5147-458d-9372-4b6127de7f87",
+          "raw_name": "Michaeldelfino820"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cm_294266c6",
+      "display_name": "Mikestupi",
+      "aliases": [
+        {
+          "league_id": "bigwells-leaguern",
+          "raw_owner_id": "483dfd58-49f7-4611-a81a-709e304c0da0",
+          "raw_name": "Mikestupi"
+        },
+        {
+          "league_id": "the-big-leagues",
+          "raw_owner_id": "483dfd58-49f7-4611-a81a-709e304c0da0",
+          "raw_name": "Mikestupi"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cm_62275c9d",
+      "display_name": "Patrick  Hall",
+      "aliases": [
+        {
+          "league_id": "bigwells-leaguern",
+          "raw_owner_id": "16d2e99e-edae-4434-84ac-455b1c9dfaaf",
+          "raw_name": "Patrick  Hall"
+        },
+        {
+          "league_id": "the-big-leagues",
+          "raw_owner_id": "16d2e99e-edae-4434-84ac-455b1c9dfaaf",
+          "raw_name": "Patrick  Hall"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cm_2a5c5010",
+      "display_name": "Riley Janecek",
+      "aliases": [
+        {
+          "league_id": "bigwells-leaguern",
+          "raw_owner_id": "413790f5-d7bb-4a2e-94d1-d3524e75f597",
+          "raw_name": "Riley Janecek"
+        },
+        {
+          "league_id": "the-big-leagues",
+          "raw_owner_id": "413790f5-d7bb-4a2e-94d1-d3524e75f597",
+          "raw_name": "Riley Janecek"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cm_79df014a",
+      "display_name": "Ryan Hunt",
+      "aliases": [
+        {
+          "league_id": "bigwells-leaguern",
+          "raw_owner_id": "6c7d440d-b9cb-47dd-8e4a-e998929573e1",
+          "raw_name": "Ryan Hunt"
+        },
+        {
+          "league_id": "the-big-leagues",
+          "raw_owner_id": "6c7d440d-b9cb-47dd-8e4a-e998929573e1",
+          "raw_name": "Ryan Hunt"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cm_d45e5c80",
+      "display_name": "Sean Palumbo",
+      "aliases": [
+        {
+          "league_id": "bigwells-leaguern",
+          "raw_owner_id": "f7f19c91-e4cc-4530-bf3f-b4e962d87870",
+          "raw_name": "Sean Palumbo"
+        },
+        {
+          "league_id": "the-big-leagues",
+          "raw_owner_id": "f7f19c91-e4cc-4530-bf3f-b4e962d87870",
+          "raw_name": "Sean Palumbo"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cm_4748ba2e",
+      "display_name": "amerongill22",
+      "aliases": [
+        {
+          "league_id": "bigwells-leaguern",
+          "raw_owner_id": "56d54727-5735-4720-a6a5-530e09167b0d",
+          "raw_name": "amerongill22"
+        },
+        {
+          "league_id": "the-big-leagues",
+          "raw_owner_id": "56d54727-5735-4720-a6a5-530e09167b0d",
+          "raw_name": "amerongill22"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cm_61c3fafd",
+      "display_name": "cruzuntz",
+      "aliases": [
+        {
+          "league_id": "bigwells-leaguern",
+          "raw_owner_id": "5cdbb9f4-d936-43b0-a1ce-9a4b08d838ef",
+          "raw_name": "cruzuntz"
+        },
+        {
+          "league_id": "the-big-leagues",
+          "raw_owner_id": "5cdbb9f4-d936-43b0-a1ce-9a4b08d838ef",
+          "raw_name": "cruzuntz"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cm_324b8e90",
+      "display_name": "gunoffootball",
+      "aliases": [
+        {
+          "league_id": "bigwells-leaguern",
+          "raw_owner_id": "a87bf36c-3fd0-4800-870f-e84df71bd8fe",
+          "raw_name": "gunoffootball"
+        },
+        {
+          "league_id": "the-big-leagues",
+          "raw_owner_id": "a87bf36c-3fd0-4800-870f-e84df71bd8fe",
+          "raw_name": "gunoffootball"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cm_61df2c19",
+      "display_name": "ichasekatz",
+      "aliases": [
+        {
+          "league_id": "bigwells-leaguern",
+          "raw_owner_id": "821402c1-c912-4115-b32c-ac32bb2e3c16",
+          "raw_name": "ichasekatz"
+        },
+        {
+          "league_id": "the-big-leagues",
+          "raw_owner_id": "821402c1-c912-4115-b32c-ac32bb2e3c16",
+          "raw_name": "ichasekatz"
+        },
+        {
+          "league_id": "foxs-pizza-den-dynasty",
+          "raw_owner_id": "074b4dc5-fc76-4647-8e38-b94990eaed0c",
+          "raw_name": "ichasekatz"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cm_b72eea03",
+      "display_name": "jleonard24",
+      "aliases": [
+        {
+          "league_id": "bigwells-leaguern",
+          "raw_owner_id": "4d8073de-1bba-443f-9ee5-494c4976f92c",
+          "raw_name": "jleonard24"
+        },
+        {
+          "league_id": "the-big-leagues",
+          "raw_owner_id": "4d8073de-1bba-443f-9ee5-494c4976f92c",
+          "raw_name": "jleonard24"
+        },
+        {
+          "league_id": "foxs-pizza-den-dynasty",
+          "raw_owner_id": "5a75768d-1d76-42b3-abd3-4dd1f4cda11d",
+          "raw_name": "jleonard24"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cm_558da7af",
+      "display_name": "juneeyeaa",
+      "aliases": [
+        {
+          "league_id": "bigwells-leaguern",
+          "raw_owner_id": "4131d6c4-5a1f-4a72-a0b3-46552e85a5fb",
+          "raw_name": "juneeyeaa"
+        },
+        {
+          "league_id": "the-big-leagues",
+          "raw_owner_id": "4131d6c4-5a1f-4a72-a0b3-46552e85a5fb",
+          "raw_name": "juneeyeaa"
+        },
+        {
+          "league_id": "foxs-pizza-den-dynasty",
+          "raw_owner_id": "1a38d7f0-1d46-4f94-972f-0724d90b2135",
+          "raw_name": "juneeyeaa"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cm_a4c17b37",
+      "display_name": "jwearn",
+      "aliases": [
+        {
+          "league_id": "bigwells-leaguern",
+          "raw_owner_id": "5b9d26ad-835f-4241-a6eb-6292c3658337",
+          "raw_name": "jwearn"
+        },
+        {
+          "league_id": "the-big-leagues",
+          "raw_owner_id": "5b9d26ad-835f-4241-a6eb-6292c3658337",
+          "raw_name": "jwearn"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cm_43180531",
+      "display_name": "lildawgdave",
+      "aliases": [
+        {
+          "league_id": "bigwells-leaguern",
+          "raw_owner_id": "c4207832-17be-4f02-a960-ea8e23ac923c",
+          "raw_name": "lildawgdave"
+        },
+        {
+          "league_id": "the-big-leagues",
+          "raw_owner_id": "c4207832-17be-4f02-a960-ea8e23ac923c",
+          "raw_name": "lildawgdave"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cm_650020bd",
+      "display_name": "nak33b",
+      "aliases": [
+        {
+          "league_id": "bigwells-leaguern",
+          "raw_owner_id": "2155a114-6399-47a8-bfb7-b464d36114dc",
+          "raw_name": "nak33b"
+        },
+        {
+          "league_id": "the-big-leagues",
+          "raw_owner_id": "2155a114-6399-47a8-bfb7-b464d36114dc",
+          "raw_name": "nak33b"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cm_f399a6e2",
+      "display_name": "namar",
+      "aliases": [
+        {
+          "league_id": "bigwells-leaguern",
+          "raw_owner_id": "90dc5aac-6ce9-486c-91a2-f2c930f2efa4",
+          "raw_name": "namar"
+        },
+        {
+          "league_id": "the-big-leagues",
+          "raw_owner_id": "90dc5aac-6ce9-486c-91a2-f2c930f2efa4",
+          "raw_name": "namar"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cm_fa012863",
+      "display_name": "peterdelfino3",
+      "aliases": [
+        {
+          "league_id": "bigwells-leaguern",
+          "raw_owner_id": "66414196-ec52-4a31-a284-cb21d5073197",
+          "raw_name": "peterdelfino3"
+        },
+        {
+          "league_id": "the-big-leagues",
+          "raw_owner_id": "66414196-ec52-4a31-a284-cb21d5073197",
+          "raw_name": "peterdelfino3"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cm_d3d431f0",
+      "display_name": "rmcg27",
+      "aliases": [
+        {
+          "league_id": "bigwells-leaguern",
+          "raw_owner_id": "80efa1e9-3871-4bf5-b3ac-4b39592554e3",
+          "raw_name": "rmcg27"
+        },
+        {
+          "league_id": "the-big-leagues",
+          "raw_owner_id": "80efa1e9-3871-4bf5-b3ac-4b39592554e3",
+          "raw_name": "rmcg27"
+        }
+      ]
+    },
+    {
+      "canonical_id": "cm_e078c3b1",
+      "display_name": "tannerdavis017",
+      "aliases": [
+        {
+          "league_id": "bigwells-leaguern",
+          "raw_owner_id": "c8a55d0f-de8c-462a-989c-4ab53caab167",
+          "raw_name": "tannerdavis017"
+        },
+        {
+          "league_id": "the-big-leagues",
+          "raw_owner_id": "c8a55d0f-de8c-462a-989c-4ab53caab167",
+          "raw_name": "tannerdavis017"
+        }
+      ]
+    }
+  ]
+}

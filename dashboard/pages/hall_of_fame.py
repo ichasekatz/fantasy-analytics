@@ -1,0 +1,309 @@
+"""League Museum: championship gallery, season timeline, franchise histories, draft boards."""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+import pandas as pd
+import plotly.express as px
+import streamlit as st
+
+sys.path.insert(0, str(Path(__file__).parents[1]))
+sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
+
+from fantasy.analytics.standings import career_standings, season_standings
+from style import inject_css
+from utils import apply_league_filter
+
+_POS_COLORS = {
+    "QB": "#E53E3E",
+    "RB": "#38A169",
+    "WR": "#3182CE",
+    "TE": "#D69E2E",
+    "K": "#805AD5",
+    "DST": "#718096",
+}
+
+
+def render(conn) -> None:
+    inject_css()
+    st.title("🏛️ League Museum")
+
+    matchups_df = apply_league_filter(conn.execute("SELECT * FROM matchups").df())
+    draft_df = apply_league_filter(conn.execute("SELECT * FROM draft_picks ORDER BY season, overall").df())
+
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "🏆 Championship Gallery",
+        "📅 Season Timeline",
+        "🏅 Franchise Histories",
+        "🎭 Draft Boards",
+    ])
+
+    with tab1:
+        _render_championship_gallery(matchups_df)
+
+    with tab2:
+        _render_season_timeline(conn, matchups_df)
+
+    with tab3:
+        _render_franchise_histories(conn, matchups_df)
+
+    with tab4:
+        _render_draft_boards(draft_df)
+
+
+def _championship_rows(matchups_df: pd.DataFrame) -> pd.DataFrame:
+    champs = matchups_df[matchups_df["is_championship"] == True].copy()
+    if champs.empty:
+        return pd.DataFrame()
+
+    rows = []
+    for _, row in champs.iterrows():
+        if row["winner_team_id"] == row["team_a_id"]:
+            champ, champ_team, champ_pts = row["team_a_owner"], row.get("team_a_name", ""), row["points_a"]
+            runner, runner_pts = row["team_b_owner"], row["points_b"]
+        else:
+            champ, champ_team, champ_pts = row["team_b_owner"], row.get("team_b_name", ""), row["points_b"]
+            runner, runner_pts = row["team_a_owner"], row["points_a"]
+        rows.append({
+            "season": int(row["season"]),
+            "champion": champ,
+            "champ_team": champ_team or champ,
+            "champ_pts": round(float(champ_pts), 2),
+            "runner_up": runner,
+            "runner_pts": round(float(runner_pts), 2),
+            "margin": round(abs(float(champ_pts) - float(runner_pts)), 2),
+            "league_id": row.get("league_id", ""),
+        })
+    return pd.DataFrame(rows).sort_values("season")
+
+
+def _render_championship_gallery(matchups_df: pd.DataFrame) -> None:
+    st.subheader("🏆 Championship Gallery")
+
+    champs = _championship_rows(matchups_df)
+    if champs.empty:
+        st.info("No championship data found.")
+        return
+
+    for _, row in champs.iterrows():
+        dominant = row["margin"] > 20
+        with st.container():
+            cols = st.columns([1, 3, 2])
+            with cols[0]:
+                st.markdown(f"### {int(row['season'])}")
+            with cols[1]:
+                badge = " 👑 **DOMINANT**" if dominant else ""
+                st.markdown(f"**🏆 {row['champion']}** — *{row['champ_team']}*{badge}")
+                st.caption(f"def. {row['runner_up']} · {row['champ_pts']} – {row['runner_pts']} · margin {row['margin']}")
+            with cols[2]:
+                st.metric("Winning Score", row["champ_pts"])
+        st.divider()
+
+    st.subheader("Championship Counts")
+    counts = champs["champion"].value_counts().reset_index()
+    counts.columns = ["Manager", "Championships"]
+    fig = px.bar(
+        counts.sort_values("Championships"),
+        x="Championships", y="Manager", orientation="h",
+        color="Championships",
+        color_continuous_scale=["#F7C59F", "#FF6B35"],
+    )
+    fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", showlegend=False, coloraxis_showscale=False)
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def _render_season_timeline(conn, matchups_df: pd.DataFrame) -> None:
+    st.subheader("📅 Season Timeline")
+
+    seasons = sorted(matchups_df["season"].dropna().unique())
+    if not seasons:
+        st.info("No season data.")
+        return
+
+    champ_map = {}
+    for _, row in _championship_rows(matchups_df).iterrows():
+        champ_map[int(row["season"])] = row["champion"]
+
+    all_scores = pd.concat([
+        matchups_df[["season", "week", "team_a_owner", "points_a"]].rename(columns={"team_a_owner": "owner", "points_a": "pts"}),
+        matchups_df[["season", "week", "team_b_owner", "points_b"]].rename(columns={"team_b_owner": "owner", "points_b": "pts"}),
+    ]).dropna(subset=["pts"])
+
+    for s in reversed(seasons):
+        s = int(s)
+        season_scores = all_scores[all_scores["season"] == s]
+        teams = len(matchups_df[matchups_df["season"] == s][["team_a_owner"]].drop_duplicates())
+        champion = champ_map.get(s, "—")
+        top_scorer = season_scores.loc[season_scores["pts"].idxmax()] if not season_scores.empty else None
+
+        with st.expander(f"**{s}** — 🏆 {champion} · {teams} teams", expanded=False):
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Champion", champion)
+            if top_scorer is not None:
+                c2.metric("Best Single Game", f"{top_scorer['pts']:.1f} pts")
+                c3.metric("Best Scorer", str(top_scorer["owner"]))
+
+            lid: str | None = st.session_state.get("selected_league_id")
+            standings = season_standings(matchups_df, s, lid)
+            if not standings.empty:
+                top3 = standings.head(3)[["owner", "total_wins", "total_losses", "points_for"]].rename(columns={
+                    "owner": "Manager", "total_wins": "W", "total_losses": "L", "points_for": "PF"
+                })
+                top3["PF"] = top3["PF"].round(1)
+                st.caption("Top 3 finishers:")
+                st.dataframe(top3, use_container_width=True, hide_index=True)
+
+
+def _render_franchise_histories(conn, matchups_df: pd.DataFrame) -> None:
+    st.subheader("🏅 All-Time Franchise Histories")
+
+    if matchups_df.empty:
+        st.info("No data.")
+        return
+
+    champ_map: dict[str, int] = {}
+    for _, row in _championship_rows(matchups_df).iterrows():
+        c = row["champion"]
+        champ_map[c] = champ_map.get(c, 0) + 1
+
+    # Playoff appearances: seasons where manager appeared in a playoff matchup
+    playoff_df = matchups_df[matchups_df["is_playoff"].fillna(False) | matchups_df["is_championship"].fillna(False)]
+    playoff_owners = set(playoff_df["team_a_owner"].dropna().tolist() + playoff_df["team_b_owner"].dropna().tolist())
+    playoff_by_owner: dict[str, set] = {}
+    for _, row in playoff_df.iterrows():
+        for o in [row["team_a_owner"], row["team_b_owner"]]:
+            if o:
+                playoff_by_owner.setdefault(o, set()).add(int(row["season"]))
+
+    lid: str | None = st.session_state.get("selected_league_id")
+    career = career_standings(matchups_df, league_id=lid)
+    if career.empty:
+        st.info("No career data.")
+        return
+
+    rows = []
+    for _, r in career.iterrows():
+        owner = r["owner"]
+        playoffs = len(playoff_by_owner.get(owner, set()))
+        rows.append({
+            "Manager": owner,
+            "Seasons": int(r["seasons_played"]),
+            "W": int(r["h2h_wins"]),
+            "L": int(r["h2h_losses"]),
+            "Win%": round(float(r["h2h_win_pct"]), 3),
+            "PF": round(float(r["points_for"]), 1),
+            "Playoffs": playoffs,
+            "Championships": champ_map.get(owner, 0),
+        })
+
+    df = pd.DataFrame(rows).sort_values("W", ascending=False)
+    st.dataframe(df, use_container_width=True, hide_index=True)
+
+    st.divider()
+    owners = sorted(career["owner"].dropna().unique())
+    sel = st.selectbox("Manager detail view", owners, key="hof_manager")
+
+    lid2: str | None = st.session_state.get("selected_league_id")
+    seasons = sorted(matchups_df["season"].unique())
+    history_rows = []
+    for s in seasons:
+        standings = season_standings(matchups_df, int(s), lid2)
+        if standings.empty:
+            continue
+        idx = standings.index[standings["owner"] == sel].tolist()
+        if not idx:
+            continue
+        rank = idx[0] + 1
+        r = standings.iloc[idx[0]]
+        history_rows.append({
+            "Season": int(s),
+            "Team": r.get("team", ""),
+            "W": int(r["total_wins"]),
+            "L": int(r["total_losses"]),
+            "PF": round(float(r["points_for"]), 1),
+            "PA": round(float(r["points_against"]), 1),
+            "Finish": rank,
+            "Champion": "🏆" if champ_map.get(sel, 0) > 0 and int(s) in {
+                int(cr["season"]) for _, cr in _championship_rows(matchups_df).iterrows()
+                if cr["champion"] == sel
+            } else "",
+        })
+
+    if history_rows:
+        st.subheader(f"{sel} — Season History")
+        st.dataframe(pd.DataFrame(history_rows), use_container_width=True, hide_index=True)
+
+
+def _render_draft_boards(draft_df: pd.DataFrame) -> None:
+    st.subheader("🎭 Historical Draft Boards")
+
+    if draft_df.empty:
+        st.info("No draft data.")
+        return
+
+    seasons = sorted(draft_df["season"].unique(), reverse=True)
+    sel_season = st.selectbox("Season", seasons, key="hof_draft_season")
+    df = draft_df[draft_df["season"] == sel_season].copy()
+
+    if df.empty:
+        st.info("No draft data for this season.")
+        return
+
+    num_rounds = int(df["round"].max())
+    owners_ordered = df.sort_values("overall").groupby("round").apply(
+        lambda g: g.sort_values("overall")["owner_name"].tolist()
+    ).iloc[0] if num_rounds > 0 else []
+
+    # Build pivot: index=round, columns=pick_in_round, values=cell text
+    df["pick_in_round"] = df.groupby("round")["overall"].rank(method="first").astype(int)
+    df["cell"] = df.apply(
+        lambda r: f"**{r['owner_name']}**\n{r['player']} ({r['position']})" + (" 🔑" if r.get("keeper") else ""),
+        axis=1,
+    )
+
+    pivot = df.pivot(index="round", columns="pick_in_round", values="cell").fillna("")
+
+    # Color by position using a heatmap-style approach — render as styled HTML table
+    pos_color_map = {
+        "QB": "#742A2A", "RB": "#1C4532", "WR": "#1A365D",
+        "TE": "#744210", "K": "#322659", "DST": "#2D3748",
+    }
+
+    def _cell_color(row_idx: int, col_idx: int) -> str:
+        try:
+            pos = df[(df["round"] == row_idx) & (df["pick_in_round"] == col_idx)]["position"].iloc[0]
+            return pos_color_map.get(pos, "#2D3748")
+        except IndexError:
+            return "#1A202C"
+
+    max_picks = int(df["pick_in_round"].max())
+    html_rows = []
+    for rnd in range(1, num_rounds + 1):
+        cells = []
+        for pick in range(1, max_picks + 1):
+            text = pivot.loc[rnd, pick] if rnd in pivot.index and pick in pivot.columns else ""
+            bg = _cell_color(rnd, pick)
+            cells.append(
+                f'<td style="background:{bg};color:#F0F4F8;padding:6px 8px;font-size:0.75rem;'
+                f'border:1px solid #2D3550;min-width:100px;vertical-align:top;white-space:pre-wrap">'
+                f'{text.replace("**", "").replace("*", "")}</td>'
+            )
+        html_rows.append(f'<tr><td style="background:#0E1117;color:#8892A4;padding:4px 8px;font-weight:700">R{rnd}</td>' + "".join(cells) + "</tr>")
+
+    table_html = (
+        '<div style="overflow-x:auto">'
+        '<table style="border-collapse:collapse;width:max-content">'
+        "<thead><tr>"
+        '<th style="background:#0E1117;padding:4px 8px"></th>'
+        + "".join(f'<th style="background:#0E1117;color:#8892A4;padding:4px 8px;font-size:0.75rem">Pick {p}</th>' for p in range(1, max_picks + 1))
+        + "</tr></thead><tbody>"
+        + "".join(html_rows)
+        + "</tbody></table></div>"
+    )
+
+    st.markdown(table_html, unsafe_allow_html=True)
+
+    st.divider()
+    st.caption("Position colors: 🔴 QB · 🟢 RB · 🔵 WR · 🟡 TE · 🟣 K · ⚫ DST · 🔑 Keeper")

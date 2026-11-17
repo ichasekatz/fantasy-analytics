@@ -9,12 +9,14 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
+sys.path.insert(0, str(Path(__file__).parents[1]))
 sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
 
 from fantasy.analytics.cross_league import cross_league_standings
 from fantasy.analytics.standings import career_standings, season_standings
 from fantasy.identity.enrichment import enrich_matchups
 from fantasy.identity.registry import load_registry
+from utils import apply_league_filter
 
 _missing_seasons = [2021]
 _identity_path = Path(__file__).parents[2] / "data" / "identity" / "manager_aliases.json"
@@ -31,15 +33,9 @@ def render(conn) -> None:
     """
     st.title("👤 Manager Profiles")
 
-    league_id: str | None = st.session_state.get("selected_league_id")
     registry = load_registry(_identity_path)
-    matchups_df = conn.execute("SELECT * FROM matchups").df()
-
-    # Filter by league if one is selected
-    if league_id and "league_id" in matchups_df.columns:
-        filtered_df = matchups_df[matchups_df["league_id"] == league_id].copy()
-    else:
-        filtered_df = matchups_df.copy()
+    filtered_df = apply_league_filter(conn.execute("SELECT * FROM matchups").df())
+    league_id: str | None = st.session_state.get("selected_league_id")
 
     enriched = enrich_matchups(filtered_df, registry)
 
@@ -62,7 +58,7 @@ def render(conn) -> None:
     # Career summary — use cross_league_standings if all leagues, else career_standings
     st.subheader("Career Statistics")
     if league_id is None:
-        career = cross_league_standings(matchups_df, registry)
+        career = cross_league_standings(filtered_df, registry)
         owner_career = career[career["manager"] == selected_manager]
         if not owner_career.empty:
             row = owner_career.iloc[0]
@@ -123,9 +119,9 @@ def render(conn) -> None:
         entry: dict = {
             "Season": int(season),
             "Team": r["team"],
-            "W": int(r["wins"]),
-            "L": int(r["losses"]),
-            "Win%": f"{r['win_pct']:.3f}",
+            "W": int(r["total_wins"]),
+            "L": int(r["total_losses"]),
+            "Win%": f"{r['total_win_pct']:.3f}",
             "PF": round(r["points_for"], 2),
             "PA": round(r["points_against"], 2),
             "Finish": int(s.index[s["owner"] == selected_manager][0]) + 1,

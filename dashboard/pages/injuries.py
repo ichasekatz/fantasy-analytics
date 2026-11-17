@@ -1,4 +1,4 @@
-"""Injury analysis page: proxy injury detection from scoring patterns."""
+"""Injury impact analysis: NFL injury report data crossed with fantasy rosters."""
 
 from __future__ import annotations
 
@@ -6,175 +6,257 @@ import sys
 from pathlib import Path
 
 import pandas as pd
+import plotly.express as px
 import streamlit as st
 
+sys.path.insert(0, str(Path(__file__).parents[1]))
 sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
 
-_ext_weekly = Path(__file__).parents[2] / "data" / "external" / "nfl_weekly_stats.parquet"
+from utils import apply_league_filter
 
-# Points threshold below which a started player is treated as "likely unavailable"
-_zero_game_threshold = 3.0
-# Fraction of positional average below which a drafted player is "likely impacted"
-_impact_threshold = 0.5
+_injuries_path = Path(__file__).parents[2] / "data" / "external" / "nfl_injuries.parquet"
 
-
-@st.cache_data
-def _rosters(_conn) -> pd.DataFrame:
-    """Load all roster data.
-
-    Args:
-        _conn: DuckDB connection.
-
-    Returns:
-        Rosters DataFrame.
-    """
-    return _conn.execute("SELECT * FROM rosters").df()
+_status_order = {"Out": 0, "Doubtful": 1, "Questionable": 2, "Note": 3}
+_status_color = {"Out": "#ef4444", "Doubtful": "#f97316", "Questionable": "#eab308", "Note": "#64748b"}
 
 
 @st.cache_data
-def _draft_picks(_conn) -> pd.DataFrame:
-    """Load draft picks.
-
-    Args:
-        _conn: DuckDB connection.
-
-    Returns:
-        Draft picks DataFrame.
-    """
-    return _conn.execute("SELECT season, overall, round, owner_name, player, position FROM draft_picks").df()
+def _load_injuries() -> pd.DataFrame:
+    if not _injuries_path.exists():
+        return pd.DataFrame()
+    df = pd.read_parquet(_injuries_path)
+    df["season"] = df["season"].astype(int)
+    df["week"] = df["week"].astype(int)
+    return df[df["game_type"] == "REG"].copy()
 
 
 def render(conn) -> None:
-    """Render the Injury Analysis page.
+    """Render the Injury Impact page.
 
     Args:
         conn: Open DuckDB connection.
     """
-    st.title("💊 Injury Analysis")
-    st.warning(
-        "⚠️ Injury data is approximated from scoring patterns. "
-        "A player scoring below threshold is flagged as 'likely impacted' — "
-        "this may include healthy players who had a bad game. "
-        "For verified injury history, external sources are needed."
-    )
+    st.title("🩺 Injury Impact")
 
-    rosters_df = _rosters(conn)
-    draft_df = _draft_picks(conn)
-    league_id: str | None = st.session_state.get("selected_league_id")
-    seasons_df = conn.execute("SELECT season, provider FROM seasons ORDER BY season").df()
-
-    seasons = sorted(rosters_df["season"].unique())
-    provider_map = dict(zip(seasons_df["season"], seasons_df["provider"], strict=False))
-    season_opts = ["All Seasons"] + [f"{s} ({provider_map.get(s,'?')})" for s in seasons]
-    season_label = st.selectbox("Season", season_opts, index=len(season_opts) - 1)
-    selected_season: int | None = None if season_label == "All Seasons" else seasons[season_opts.index(season_label) - 1]
-
-    if league_id and "league_id" in rosters_df.columns:
-        rosters_df = rosters_df[rosters_df["league_id"] == league_id].copy()
-    if selected_season is not None:
-        rosters_df = rosters_df[rosters_df["season"] == selected_season].copy()
-        draft_df = draft_df[draft_df["season"] == selected_season].copy()
-
-    if rosters_df.empty:
-        st.info("No roster data for this selection.")
+    inj_df = _load_injuries()
+    if inj_df.empty:
+        st.error("Injury data not found. Run the data refresh to fetch it.")
         return
 
-    tab1, tab2 = st.tabs(["Drafted Player Impact", "Manager Injury Burden"])
+    rosters_df = apply_league_filter(conn.execute("SELECT * FROM rosters").df())
+    matchups_df = apply_league_filter(conn.execute("SELECT * FROM matchups").df())
 
-    with tab1:
-        st.subheader("Low-Production Drafted Players")
-        st.caption(
-            f"Drafted players who scored < {int(_impact_threshold * 100)}% of their "
-            "positional average are flagged as 'Likely Impacted'."
+    if rosters_df.empty:
+        st.info("No roster data available for the selected league.")
+        return
+
+    # Merge injury report onto rosters by player name + season + week
+    # Use full_name from injury data; player from rosters
+    merged = rosters_df.merge(
+        inj_df[["season", "week", "full_name", "position", "report_status",
+                "report_primary_injury", "practice_status"]],
+        left_on=["season", "week", "player"],
+        right_on=["season", "week", "full_name"],
+        how="inner",
+    )
+    merged = merged[merged["report_status"].notna()]
+
+    seasons = sorted(rosters_df["season"].unique(), reverse=True)
+    owners = sorted(rosters_df["owner_name"].dropna().unique())
+
+    tab_overview, tab_manager, tab_player, tab_timing = st.tabs([
+        "League Overview", "By Manager", "By Player", "Injury Timing",
+    ])
+
+    with tab_overview:
+        _render_overview(merged, inj_df, seasons)
+
+    with tab_manager:
+        _render_by_manager(merged, matchups_df, owners, seasons)
+
+    with tab_player:
+        _render_by_player(merged, seasons)
+
+    with tab_timing:
+        _render_timing(merged, matchups_df)
+
+
+def _render_overview(merged: pd.DataFrame, inj_df: pd.DataFrame, seasons: list) -> None:
+    selected_season = st.selectbox("Season", seasons, key="inj_overview_season")
+    season_inj = merged[merged["season"] == selected_season]
+
+    col1, col2, col3, col4 = st.columns(4)
+    out_count = len(season_inj[season_inj["report_status"] == "Out"])
+    q_count = len(season_inj[season_inj["report_status"] == "Questionable"])
+    d_count = len(season_inj[season_inj["report_status"] == "Doubtful"])
+    starters_hurt = len(season_inj[season_inj["starter"] == True])
+    col1.metric("Out designations", out_count)
+    col2.metric("Doubtful", d_count)
+    col3.metric("Questionable", q_count)
+    col4.metric("Starter injuries", starters_hurt)
+
+    st.divider()
+
+    # Injury burden by team (points lost from injured starters)
+    st.subheader("Injury Burden by Manager (starter pts lost to injury)")
+    starter_out = season_inj[(season_inj["starter"] == True) & (season_inj["report_status"].isin(["Out", "Doubtful"]))]
+    if not starter_out.empty:
+        burden = (
+            starter_out.groupby("owner_name")["points"]
+            .agg(games="count", pts_lost="sum")
+            .reset_index()
+            .rename(columns={"owner_name": "Manager", "games": "Games w/ Injured Starter", "pts_lost": "Total Pts Lost"})
+            .sort_values("Total Pts Lost")
         )
-
-        # Compute positional averages per season from roster starters
-        starters = rosters_df[rosters_df["starter"] == True].copy()
-        pos_avg = starters.groupby(["season", "position"])["points"].mean().reset_index()
-        pos_avg.columns = ["season", "position", "pos_avg"]
-
-        # Aggregate drafted player performance
-        player_perf = rosters_df.groupby(["season", "player", "position"])["points"].sum().reset_index()
-        player_perf.columns = ["season", "player", "position", "total_points"]
-
-        # Join draft info
-        picks_perf = draft_df.merge(player_perf, on=["season", "player", "position"], how="left")
-        picks_perf = picks_perf.merge(pos_avg, on=["season", "position"], how="left")
-        picks_perf = picks_perf.dropna(subset=["pos_avg"])
-
-        # Normalize to 17-game equivalent
-        week_counts = rosters_df.groupby("season")["week"].nunique().reset_index()
-        week_counts.columns = ["season", "num_weeks"]
-        picks_perf = picks_perf.merge(week_counts, on="season", how="left")
-        picks_perf["expected_full_season"] = picks_perf["pos_avg"] * picks_perf["num_weeks"].fillna(13)
-        picks_perf["pct_of_avg"] = (picks_perf["total_points"] / picks_perf["expected_full_season"].replace(0, pd.NA)).round(3)
-        picks_perf["flag"] = picks_perf["pct_of_avg"].apply(
-            lambda x: "⚠️ Likely Impacted" if pd.notna(x) and x < _impact_threshold else "✅ Normal"
+        fig = px.bar(
+            burden, x="Total Pts Lost", y="Manager", orientation="h",
+            color_discrete_sequence=["#ef4444"],
+            labels={"Total Pts Lost": "Points from injured starters (Out/Doubtful)"},
         )
+        fig.update_layout(yaxis={"categoryorder": "total ascending"})
+        st.plotly_chart(fig, use_container_width=True)
+        st.caption("Points scored by starters designated Out or Doubtful that week.")
+    else:
+        st.info("No Out/Doubtful starter data for this season.")
 
-        impacted = picks_perf[picks_perf["pct_of_avg"] < _impact_threshold].copy()
-        if impacted.empty:
-            st.info("No significantly impacted drafted players found.")
-        else:
-            impacted["total_points"] = impacted["total_points"].fillna(0).round(2)
-            impacted["expected_full_season"] = impacted["expected_full_season"].round(2)
-            impacted["pct_of_avg"] = (impacted["pct_of_avg"] * 100).round(1)
-            display = impacted[[
-                "season", "owner_name", "player", "position", "round",
-                "total_points", "expected_full_season", "pct_of_avg", "flag",
-            ]].rename(columns={
-                "season": "Season", "owner_name": "Owner", "player": "Player",
-                "position": "Pos", "round": "Rd",
-                "total_points": "Actual Pts", "expected_full_season": "Expected Pts",
-                "pct_of_avg": "% of Avg", "flag": "Status",
-            }).sort_values(["Season", "% of Avg"])
-            st.dataframe(display, use_container_width=True, hide_index=True)
-
-    with tab2:
-        st.subheader("Manager Injury Burden")
-        st.caption(
-            f"Impacted starter-weeks = weeks where a started player scored < {_zero_game_threshold} points "
-            "(proxy for missing/injured). Higher = more injury-related suffering."
-        )
-
-        # Starter weeks with near-zero scores
-        starters_all = rosters_df[rosters_df["starter"] == True].copy()
-        starters_all["impacted"] = starters_all["points"] < _zero_game_threshold
-        burden = starters_all.groupby(["season", "owner_name"]).agg(
-            impacted_starter_weeks=("impacted", "sum"),
-            total_starter_weeks=("impacted", "count"),
-        ).reset_index()
-        burden["impact_rate"] = (burden["impacted_starter_weeks"] / burden["total_starter_weeks"].replace(0, pd.NA) * 100).round(1)
-        burden = burden.sort_values("impacted_starter_weeks", ascending=False)
-
-        display2 = burden.rename(columns={
-            "season": "Season", "owner_name": "Manager",
-            "impacted_starter_weeks": "Impacted Starter-Wks",
-            "total_starter_weeks": "Total Starter-Wks",
-            "impact_rate": "Impact Rate (%)",
+    # Raw table
+    with st.expander("All injury events this season"):
+        display = season_inj[["week", "owner_name", "player", "position_x", "report_status", "report_primary_injury", "starter", "points"]].rename(columns={
+            "owner_name": "Manager", "player": "Player", "position_x": "Pos",
+            "report_status": "Status", "report_primary_injury": "Injury",
+            "starter": "Starter", "points": "Pts Scored",
         })
-        st.dataframe(display2, use_container_width=True, hide_index=True)
+        display = display.sort_values(["week", "Status"])
+        st.dataframe(display, use_container_width=True, hide_index=True)
 
-        # External data: zero-point weeks per player
-        search_player = st.text_input("Check a specific player's weekly scores (requires external data)")
-        if _ext_weekly.exists() and search_player:
-            try:
-                nfl_w = pd.read_parquet(_ext_weekly)
-                player_weeks = nfl_w[nfl_w["player_name"].str.contains(search_player, case=False, na=False)]
-                if not player_weeks.empty:
-                    pts_col = "fantasy_points_ppr" if "fantasy_points_ppr" in player_weeks.columns else "fantasy_points"
-                    zero_weeks = player_weeks[player_weeks[pts_col].fillna(0) < 1] if pts_col in player_weeks.columns else pd.DataFrame()
-                    st.write(f"**{search_player}** — zero-point weeks from NFL data:")
-                    if not zero_weeks.empty and "season" in zero_weeks.columns and "week" in zero_weeks.columns:
-                        show_cols = [c for c in ["season", "week", "recent_team"] if c in zero_weeks.columns]
-                        rename = {"season": "Season", "week": "Week", "recent_team": "Team"}
-                        st.dataframe(
-                            zero_weeks[show_cols].rename(columns=rename),
-                            use_container_width=True, hide_index=True,
-                        )
-                    else:
-                        st.info("No zero-point weeks found or insufficient data columns.")
-                else:
-                    st.info(f"No NFL data found for '{search_player}'.")
-            except Exception as exc:
-                st.warning(f"Could not load external data: {exc}")
+
+def _render_by_manager(merged: pd.DataFrame, matchups_df: pd.DataFrame,
+                       owners: list, seasons: list) -> None:
+    selected = st.selectbox("Manager", owners, key="inj_manager")
+    mgr_inj = merged[merged["owner_name"] == selected]
+
+    if mgr_inj.empty:
+        st.info("No injury events found for this manager.")
+        return
+
+    col1, col2 = st.columns(2)
+    with col1:
+        total = len(mgr_inj)
+        out = len(mgr_inj[mgr_inj["report_status"] == "Out"])
+        starter_out = len(mgr_inj[(mgr_inj["starter"] == True) & (mgr_inj["report_status"] == "Out")])
+        st.metric("Total injury-week events", total)
+        st.metric("'Out' designations", out)
+        st.metric("Injured starters (Out)", starter_out)
+
+    with col2:
+        pts_lost = mgr_inj[(mgr_inj["starter"] == True) & (mgr_inj["report_status"].isin(["Out","Doubtful"]))]["points"].sum()
+        seasons_played = mgr_inj["season"].nunique()
+        st.metric("Starter pts lost (Out/Doubtful)", f"{pts_lost:.1f}")
+        st.metric("Seasons affected", seasons_played)
+
+    st.divider()
+    st.subheader("Injury events by season")
+    by_season = mgr_inj.groupby(["season", "report_status"]).size().reset_index(name="count")
+    fig = px.bar(by_season, x="season", y="count", color="report_status",
+                 color_discrete_map=_status_color,
+                 labels={"season": "Season", "count": "Injury Events", "report_status": "Status"})
+    st.plotly_chart(fig, use_container_width=True)
+
+    st.subheader("All injury events")
+    display = mgr_inj[["season", "week", "player", "position_x", "report_status",
+                        "report_primary_injury", "starter", "points"]].rename(columns={
+        "player": "Player", "position_x": "Pos", "report_status": "Status",
+        "report_primary_injury": "Injury", "starter": "Starter", "points": "Pts",
+    }).sort_values(["season", "week"])
+    st.dataframe(display, use_container_width=True, hide_index=True)
+
+
+def _render_by_player(merged: pd.DataFrame, seasons: list) -> None:
+    search = st.text_input("Search player", placeholder="e.g. Davante Adams")
+    df = merged.copy()
+    if search:
+        df = df[df["player"].str.contains(search, case=False, na=False)]
+
+    if df.empty:
+        st.info("No injury records found." if search else "Enter a player name to search.")
+        return
+
+    # Group by player
+    summary = df.groupby("player").agg(
+        seasons=("season", "nunique"),
+        injury_weeks=("week", "count"),
+        out_weeks=("report_status", lambda x: (x == "Out").sum()),
+        pts_while_hurt=("points", "sum"),
+        managers=("owner_name", lambda x: ", ".join(sorted(x.unique()))),
+    ).reset_index().rename(columns={
+        "player": "Player", "seasons": "Seasons",
+        "injury_weeks": "Injury Weeks", "out_weeks": "Out Weeks",
+        "pts_while_hurt": "Pts Scored While Hurt", "managers": "Owned By",
+    }).sort_values("Out Weeks", ascending=False)
+
+    st.dataframe(summary, use_container_width=True, hide_index=True)
+
+    if search and not df.empty:
+        st.divider()
+        st.subheader(f"All events — {df['player'].iloc[0]}")
+        detail = df[["season", "week", "owner_name", "report_status", "report_primary_injury", "starter", "points"]].rename(columns={
+            "owner_name": "Manager", "report_status": "Status",
+            "report_primary_injury": "Injury", "starter": "Starter", "points": "Pts",
+        }).sort_values(["season", "week"])
+        st.dataframe(detail, use_container_width=True, hide_index=True)
+
+
+def _render_timing(merged: pd.DataFrame, matchups_df: pd.DataFrame) -> None:
+    st.subheader("Injury timing: did injuries cost wins?")
+    st.caption("Weeks where a manager had an Out/Doubtful starter and lost that week's matchup.")
+
+    out_starters = merged[
+        (merged["starter"] == True) &
+        (merged["report_status"].isin(["Out", "Doubtful"]))
+    ][["season", "week", "owner_name", "player", "points"]].copy()
+
+    if out_starters.empty:
+        st.info("No Out/Doubtful starter data available.")
+        return
+
+    # Join to matchup results
+    team_a = matchups_df[["season", "week", "team_a_owner", "points_a", "winner_team_id", "team_a_id"]].rename(
+        columns={"team_a_owner": "owner", "points_a": "team_pts", "team_a_id": "my_team_id"}
+    )
+    team_b = matchups_df[["season", "week", "team_b_owner", "points_b", "winner_team_id", "team_b_id"]].rename(
+        columns={"team_b_owner": "owner", "points_b": "team_pts", "team_b_id": "my_team_id"}
+    )
+    all_games = pd.concat([team_a, team_b], ignore_index=True)
+    all_games["won"] = all_games["winner_team_id"] == all_games["my_team_id"]
+
+    hurt_weeks = out_starters.merge(
+        all_games[["season", "week", "owner", "team_pts", "won"]],
+        left_on=["season", "week", "owner_name"],
+        right_on=["season", "week", "owner"],
+        how="left",
+    ).dropna(subset=["won"])
+
+    if hurt_weeks.empty:
+        st.info("Could not match injury weeks to matchup results.")
+        return
+
+    total = len(hurt_weeks[["season", "week", "owner_name"]].drop_duplicates())
+    losses = hurt_weeks[hurt_weeks["won"] == False][["season", "week", "owner_name"]].drop_duplicates()
+    wins = total - len(losses)
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Weeks with Out/Doubtful starter", total)
+    col2.metric("Won despite injury", wins)
+    col3.metric("Lost with injured starter", len(losses))
+
+    st.divider()
+    if not losses.empty:
+        st.subheader("Painful losses — Out/Doubtful starter on loss week")
+        loss_detail = losses.merge(
+            hurt_weeks[["season", "week", "owner_name", "player", "points", "team_pts"]],
+            on=["season", "week", "owner_name"],
+        ).rename(columns={
+            "owner_name": "Manager", "player": "Injured Player",
+            "points": "Injured Pts", "team_pts": "Team Score",
+        })
+        st.dataframe(loss_detail, use_container_width=True, hide_index=True)

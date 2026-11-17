@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).parents[1] / "src"))
 sys.path.insert(0, str(Path(__file__).parent))
 
 from fantasy.database.db import load_from_export, reload_all_leagues
+from style import inject_css
 
 _project_root = Path(__file__).parents[1]
 _export_path = _project_root / "data" / "raw" / "bigwell-s-leaguern-fantasy-hall-of-fame-export.json"
@@ -57,23 +58,47 @@ st.set_page_config(
 )
 
 conn = _get_conn()
+inject_css()
 
 pages = {
+    # --- Core ---
     "🏠 Overview": "overview",
+    "🏛️ Hall of Fame": "hall_of_fame",
     "📈 Season Explorer": "season_explorer",
+    "🎁 Fantasy Wrapped": "season_recap",
     "📅 Matchups": "matchups",
     "📊 Standings": "standings",
+    # --- Managers ---
     "👤 Managers": "managers",
     "📐 Manager Comparison": "comparison",
     "⚔️ Head-to-Head": "headtohead",
+    "🔥 Rivalries": "rivalries",
+    "📊 Power Rankings": "power_rankings",
+    "📊 Dynamic Rankings": "dynamic_rankings",
+    # --- Draft ---
     "🎯 Draft Board": "draft",
+    "🧬 Draft DNA": "draft_dna",
+    # --- Season Analysis ---
     "🍀 Luck Analysis": "luck",
-    "🏆 All-Time Records": "alltime",
-    "🏃 Lineup Analysis": "lineups",
+    "📅 Schedule Simulator": "schedule_sim",
+    "🎲 Playoff Odds": "playoff_odds",
+    # --- Players ---
     "🔍 Player Explorer": "player_explorer",
-    "💊 Injuries": "injuries",
+    "👑 Player Ownership": "player_ownership",
+    "🌟 Player Hall of Fame": "player_hof",
+    # --- Decisions ---
+    "🔄 Trade Lab": "trades",
+    "🏃 Lineup Analysis": "lineups",
+    "🩺 Injury Impact": "injuries",
+    # --- History ---
+    "🏆 All-Time Records": "alltime",
+    "🥇 Awards": "awards",
+    "🧠 Trivia": "trivia",
+    "🔬 Custom Analytics": "custom_analytics",
+    # --- Admin ---
     "⬇️ Downloads": "downloads",
     "🪪 Manager Identity": "identity",
+    "⚙️ League Config": "league_config",
 }
 
 league_options = _load_league_options()

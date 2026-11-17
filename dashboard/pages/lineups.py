@@ -9,10 +9,13 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
+sys.path.insert(0, str(Path(__file__).parents[1]))
 sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
 
+from utils import apply_league_filter
+
 try:
-    from fantasy.analytics.lineups import bench_strength, lineup_efficiency, lineup_efficiency_summary
+    from fantasy.analytics.lineups import bench_strength, lineup_decision_quality, lineup_efficiency, lineup_efficiency_summary
 
     _has_lineup_analytics = True
 except ImportError:
@@ -44,8 +47,9 @@ def render(conn) -> None:
         st.warning("Lineup analytics module not found. Ensure `src/fantasy/analytics/lineups.py` exists.")
         return
 
-    rosters_df = _rosters(conn)
-    seasons_df = conn.execute("SELECT season, provider FROM seasons ORDER BY season").df()
+    rosters_df = apply_league_filter(_rosters(conn))
+    seasons_df = apply_league_filter(conn.execute("SELECT season, provider FROM seasons ORDER BY season").df())
+    seasons_df = seasons_df.drop_duplicates(subset=["season"])
     league_id: str | None = st.session_state.get("selected_league_id")
 
     seasons = sorted(rosters_df["season"].unique())
@@ -56,9 +60,6 @@ def render(conn) -> None:
     with col1:
         season_label = st.selectbox("Season", season_opts, index=len(season_opts) - 1)
     selected_season: int | None = None if season_label == "All Seasons" else seasons[season_opts.index(season_label) - 1]
-
-    if league_id and "league_id" in rosters_df.columns:
-        rosters_df = rosters_df[rosters_df["league_id"] == league_id].copy()
     if selected_season is not None:
         season_rosters = rosters_df[rosters_df["season"] == selected_season].copy()
     else:
@@ -68,7 +69,7 @@ def render(conn) -> None:
         st.info("No roster data for this selection.")
         return
 
-    tab1, tab2, tab3 = st.tabs(["Efficiency Summary", "Weekly Efficiency", "Bench Strength"])
+    tab1, tab2, tab3, tab4 = st.tabs(["Efficiency Summary", "Weekly Efficiency", "Bench Strength", "🎯 Decision Quality"])
 
     with tab1:
         st.subheader("Lineup Efficiency Summary")
@@ -149,3 +150,59 @@ def render(conn) -> None:
                 "bench_ratio": "Bench/Starter Ratio",
             })
             st.dataframe(bench_display, use_container_width=True, hide_index=True)
+
+    with tab4:
+        st.subheader("🎯 Lineup Decision Quality")
+        st.caption("Missed points = optimal possible score minus actual starter score. Grade: A <5pts missed, B 5–15, C 15–30, D >30.")
+
+        dq = lineup_decision_quality(season_rosters, selected_season, league_id)
+        if dq.empty:
+            st.info("No decision quality data available.")
+        else:
+            # Manager summary
+            grade_order = ["A", "B", "C", "D"]
+            summary = dq.groupby("owner").agg(
+                avg_missed=("missed_points", "mean"),
+                total_missed=("missed_points", "sum"),
+                worst_week=("missed_points", "max"),
+                weeks=("missed_points", "count"),
+            ).reset_index()
+            summary["avg_missed"] = summary["avg_missed"].round(2)
+            summary["total_missed"] = summary["total_missed"].round(2)
+            summary["worst_week"] = summary["worst_week"].round(2)
+
+            grade_counts = dq.groupby(["owner", "decision_grade"]).size().unstack(fill_value=0).reindex(columns=grade_order, fill_value=0)
+            grade_counts.columns = [f"Grade {g}" for g in grade_order]
+            summary = summary.merge(grade_counts.reset_index(), on="owner", how="left")
+
+            st.dataframe(
+                summary.sort_values("avg_missed").rename(columns={
+                    "owner": "Manager", "avg_missed": "Avg Missed/Wk",
+                    "total_missed": "Total Missed", "worst_week": "Worst Week",
+                    "weeks": "Weeks",
+                }),
+                use_container_width=True, hide_index=True,
+            )
+
+            fig = px.bar(
+                summary.sort_values("avg_missed", ascending=True),
+                x="avg_missed", y="owner", orientation="h",
+                labels={"avg_missed": "Avg Pts Missed/Week", "owner": "Manager"},
+                color="avg_missed",
+                color_continuous_scale="RdYlGn_r",
+                title="Average Points Left on Bench (Lower = Better Decisions)",
+            )
+            fig.update_layout(coloraxis_showscale=False)
+            st.plotly_chart(fig, use_container_width=True)
+
+            st.divider()
+            st.subheader("Worst Individual Lineup Decisions")
+            worst = dq.nlargest(20, "missed_points")[["season", "week", "owner", "actual_score", "optimal_score", "missed_points", "decision_grade"]].rename(columns={
+                "season": "Season", "week": "Week", "owner": "Manager",
+                "actual_score": "Actual", "optimal_score": "Optimal",
+                "missed_points": "Missed", "decision_grade": "Grade",
+            })
+            worst["Actual"] = worst["Actual"].round(2)
+            worst["Optimal"] = worst["Optimal"].round(2)
+            worst["Missed"] = worst["Missed"].round(2)
+            st.dataframe(worst, use_container_width=True, hide_index=True)

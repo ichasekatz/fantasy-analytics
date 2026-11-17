@@ -7,9 +7,11 @@ from pathlib import Path
 
 import streamlit as st
 
+sys.path.insert(0, str(Path(__file__).parents[1]))
 sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
 
 from fantasy.analytics.standings import all_play_records, season_standings
+from utils import apply_league_filter
 
 
 def render(conn) -> None:
@@ -20,8 +22,9 @@ def render(conn) -> None:
     """
     st.title("📊 Standings")
 
-    matchups_df = conn.execute("SELECT * FROM matchups").df()
-    seasons_df = conn.execute("SELECT season, provider FROM seasons ORDER BY season").df()
+    matchups_df = apply_league_filter(conn.execute("SELECT * FROM matchups").df())
+    seasons_df = apply_league_filter(conn.execute("SELECT season, provider FROM seasons ORDER BY season").df())
+    seasons_df = seasons_df.drop_duplicates(subset=["season"])
 
     seasons = sorted(matchups_df["season"].unique())
     provider_map = dict(zip(seasons_df["season"], seasons_df["provider"], strict=False))
@@ -38,11 +41,11 @@ def render(conn) -> None:
             st.info("No regular-season data available.")
         else:
             standings.insert(0, "Rank", range(1, len(standings) + 1))
-            display_cols = ["Rank", "owner", "team", "wins", "losses", "ties", "win_pct", "points_for", "points_against", "avg_pf"]
+            display_cols = ["Rank", "owner", "team", "total_wins", "total_losses", "h2h_ties", "total_win_pct", "points_for", "points_against", "avg_pf"]
             rename = {
                 "owner": "Owner", "team": "Team",
-                "wins": "W", "losses": "L", "ties": "T",
-                "win_pct": "Win%", "points_for": "PF", "points_against": "PA", "avg_pf": "Avg PF",
+                "total_wins": "W", "total_losses": "L", "h2h_ties": "T",
+                "total_win_pct": "Win%", "points_for": "PF", "points_against": "PA", "avg_pf": "Avg PF",
             }
             out = standings[display_cols].rename(columns=rename)
             out["Win%"] = out["Win%"].apply(lambda x: f"{x:.3f}" if x == x else "—")

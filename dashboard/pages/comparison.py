@@ -9,23 +9,11 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+sys.path.insert(0, str(Path(__file__).parents[1]))
 sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
 
 from fantasy.analytics.standings import career_standings, season_standings
-
-
-@st.cache_data
-def _career_df(_conn) -> pd.DataFrame:
-    """Load career standings for all managers.
-
-    Args:
-        _conn: DuckDB connection (underscore prefix prevents st.cache_data hashing it).
-
-    Returns:
-        Career standings DataFrame.
-    """
-    df = _conn.execute("SELECT * FROM matchups").df()
-    return career_standings(df)
+from utils import apply_league_filter
 
 
 def render(conn) -> None:
@@ -36,9 +24,10 @@ def render(conn) -> None:
     """
     st.title("📐 Manager Comparison")
 
-    matchups_df = conn.execute("SELECT * FROM matchups").df()
-    seasons_df = conn.execute("SELECT season, provider FROM seasons ORDER BY season").df()
-    career = _career_df(conn)
+    matchups_df = apply_league_filter(conn.execute("SELECT * FROM matchups").df())
+    seasons_df = apply_league_filter(conn.execute("SELECT season, provider FROM seasons ORDER BY season").df())
+    seasons_df = seasons_df.drop_duplicates(subset=["season"])
+    career = career_standings(matchups_df)
 
     all_owners = sorted(matchups_df["team_a_owner"].dropna().unique().tolist()
                         + matchups_df["team_b_owner"].dropna().unique().tolist())
@@ -76,9 +65,9 @@ def render(conn) -> None:
             r = row.iloc[0]
             stat_rows.append({
                 "Manager": mgr,
-                "W": int(r["wins"]),
-                "L": int(r["losses"]),
-                "Win%": round(r["win_pct"], 3),
+                "W": int(r["total_wins"]),
+                "L": int(r["total_losses"]),
+                "Win%": round(r["total_win_pct"], 3),
                 "PF": round(r["points_for"], 1),
                 "PA": round(r["points_against"], 1),
                 "Avg PF": round(r["avg_pf"], 1),
@@ -100,9 +89,9 @@ def render(conn) -> None:
             stat_rows.append({
                 "Manager": mgr,
                 "Seasons": int(r["seasons_played"]),
-                "W": int(r["wins"]),
-                "L": int(r["losses"]),
-                "Win%": round(r["win_pct"], 3),
+                "W": int(r["h2h_wins"]),
+                "L": int(r["h2h_losses"]),
+                "Win%": round(r["h2h_win_pct"], 3),
                 "Total PF": round(r["points_for"], 1),
                 "Avg PF": round(r["avg_pf"], 1),
                 "Championships": int(champs),
@@ -126,7 +115,7 @@ def render(conn) -> None:
             return series.rank(pct=True) * 100
 
         radar_base = career.copy()
-        radar_base["win_pct_pct"] = _percentile_rank(radar_base["win_pct"])
+        radar_base["win_pct_pct"] = _percentile_rank(radar_base["h2h_win_pct"])
         radar_base["avg_pf_pct"] = _percentile_rank(radar_base["avg_pf"])
 
         # Consistency: inverse of std/mean (lower CV = more consistent = higher score)

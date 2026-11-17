@@ -2,9 +2,16 @@
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
 import pandas as pd
 import plotly.express as px
 import streamlit as st
+
+sys.path.insert(0, str(Path(__file__).parents[1]))
+
+from utils import apply_league_filter
 
 
 def render(conn) -> None:
@@ -15,20 +22,21 @@ def render(conn) -> None:
     """
     st.title("🏠 League Overview")
 
-    seasons_df = conn.execute("SELECT * FROM seasons ORDER BY season").df()
-    matchups_df = conn.execute("SELECT * FROM matchups").df()
+    seasons_df = apply_league_filter(conn.execute("SELECT * FROM seasons ORDER BY season").df())
+    seasons_df = seasons_df.drop_duplicates(subset=["season"])
+    matchups_df = apply_league_filter(conn.execute("SELECT * FROM matchups").df())
 
     # Champions
     st.subheader("🏆 Champions")
-    champs = conn.execute("""
-        SELECT season, team_a_name AS champion, team_a_owner AS champion_owner,
+    champs = apply_league_filter(conn.execute("""
+        SELECT league_id, season, team_a_name AS champion, team_a_owner AS champion_owner,
                team_b_name AS runner_up, team_b_owner AS runner_up_owner,
                ROUND(points_a, 2) AS champion_pts, ROUND(points_b, 2) AS runner_up_pts,
                ROUND(points_a - points_b, 2) AS margin
         FROM matchups
         WHERE is_championship = TRUE
         ORDER BY season
-    """).df()
+    """).df())
     if not champs.empty:
         st.dataframe(champs, use_container_width=True, hide_index=True)
     else:
