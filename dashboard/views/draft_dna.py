@@ -41,7 +41,7 @@ def render(conn) -> None:
         if _is_non_skill.any():
             _exclude_idp_draft = st.checkbox(
                 "Exclude defensive players (IDP) from draft analysis",
-                value=st.session_state.get("exclude_defensive", True),
+                value=True,
                 key="dna_exclude_idp",
                 help="2019 season had individual defensive players. Exclude for cleaner position/VORP analysis.",
             )
