@@ -69,7 +69,9 @@ def _weekly_matchups(df: pd.DataFrame) -> dict[int, list[tuple[str, str]]]:
 def _infer_playoff_cutoff(matchups_df: pd.DataFrame, season: int) -> int:
     """Infer number of playoff teams from matchup flags.
 
-    Counts distinct team IDs appearing in playoff matchups.
+    Counts distinct team IDs appearing in the FIRST playoff week only.
+    Using all playoff weeks includes consolation bracket teams (which also
+    have is_playoff=True in many platforms), inflating the cutoff to all teams.
 
     Args:
         matchups_df: Full matchups DataFrame.
@@ -79,12 +81,22 @@ def _infer_playoff_cutoff(matchups_df: pd.DataFrame, season: int) -> int:
         Number of playoff teams (defaults to 4 if none found).
     """
     playoff_rows = matchups_df[
-        (matchups_df["season"] == season) & matchups_df["is_playoff"].fillna(False)
+        (matchups_df["season"] == season)
+        & matchups_df["is_playoff"].fillna(False)
+        & ~matchups_df["is_consolation"].fillna(False)
     ]
     if playoff_rows.empty:
+        # Fall back to any is_playoff row if no non-consolation playoff rows exist
+        playoff_rows = matchups_df[
+            (matchups_df["season"] == season) & matchups_df["is_playoff"].fillna(False)
+        ]
+    if playoff_rows.empty:
         return 4  # reasonable default
-    ids = set(playoff_rows["team_a_id"].tolist()) | set(playoff_rows["team_b_id"].tolist())
-    return len(ids)
+    # Count teams in the EARLIEST playoff week only (first round of real bracket)
+    first_week = playoff_rows["week"].dropna().min()
+    first_round = playoff_rows[playoff_rows["week"] == first_week]
+    ids = set(first_round["team_a_id"].tolist()) | set(first_round["team_b_id"].tolist())
+    return max(len(ids), 2)  # guard: at least 2
 
 
 def schedule_swap_wins(

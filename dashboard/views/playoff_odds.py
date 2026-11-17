@@ -52,8 +52,10 @@ def _all_play_pct(matchups_df: pd.DataFrame, season: int, league_id: str | None)
         elif pb > pa:
             actual_wins[row["team_b_owner"]] = actual_wins.get(row["team_b_owner"], 0) + 1
 
-    # Playoff appearance
-    playoff_rows = df[df["is_playoff"].fillna(False)]
+    # Playoff appearance — exclude consolation so only real bracket teams count
+    playoff_rows = df[df["is_playoff"].fillna(False) & ~df["is_consolation"].fillna(False)]
+    if playoff_rows.empty:
+        playoff_rows = df[df["is_playoff"].fillna(False)]
     playoff_owners = set(playoff_rows["team_a_owner"].tolist()) | set(playoff_rows["team_b_owner"].tolist())
 
     rows = []
@@ -209,8 +211,14 @@ def _render_simulation(matchups_df: pd.DataFrame, seasons: list, lid: str | None
         st.info("Not enough data for this season.")
         return
 
-    # Actual playoff appearances
-    playoff_rows = matchups_df[(matchups_df["season"] == season) & matchups_df["is_playoff"].fillna(False)]
+    # Actual playoff appearances — exclude consolation bracket
+    playoff_rows = matchups_df[
+        (matchups_df["season"] == season)
+        & matchups_df["is_playoff"].fillna(False)
+        & ~matchups_df["is_consolation"].fillna(False)
+    ]
+    if playoff_rows.empty:
+        playoff_rows = matchups_df[(matchups_df["season"] == season) & matchups_df["is_playoff"].fillna(False)]
     playoff_owners = set(playoff_rows["team_a_owner"].tolist()) | set(playoff_rows["team_b_owner"].tolist())
 
     mc["actual_made_playoffs"] = mc["owner"].isin(playoff_owners)
