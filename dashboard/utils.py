@@ -253,7 +253,17 @@ def rebuild_matchups_offensive(matchups_df: pd.DataFrame, rosters_df: pd.DataFra
     if rosters_df.empty or not st.session_state.get("exclude_defensive", False):
         return matchups_df
 
-    starters = rosters_df[rosters_df["starter"].fillna(False)].copy()
+    # Only recalculate seasons that actually had IDP starters — leave other seasons untouched
+    idp_seasons = {
+        int(s) for s in rosters_df["season"].dropna().unique()
+        if season_has_idp(rosters_df, int(s))
+    }
+    if not idp_seasons:
+        return matchups_df
+
+    starters = rosters_df[
+        rosters_df["starter"].fillna(False) & rosters_df["season"].isin(idp_seasons)
+    ].copy()
     starters = filter_offensive_rosters(starters)
     starters["points"] = pd.to_numeric(starters["points"], errors="coerce").fillna(0)
     starters["week"] = pd.to_numeric(starters["week"], errors="coerce")
@@ -273,11 +283,14 @@ def rebuild_matchups_offensive(matchups_df: pd.DataFrame, rosters_df: pd.DataFra
     mdf = matchups_df.copy()
     mdf["_wk"] = pd.to_numeric(mdf["week"], errors="coerce").fillna(0).astype(int)
     mdf["_sea"] = pd.to_numeric(mdf["season"], errors="coerce").fillna(0).astype(int)
+    # Only update rows from IDP seasons; non-IDP seasons keep original scores
     mdf["points_a"] = mdf.apply(
-        lambda r: score_map.get((r["_sea"], r["_wk"], r["team_a_owner"]), r["points_a"]), axis=1
+        lambda r: score_map.get((r["_sea"], r["_wk"], r["team_a_owner"]), r["points_a"])
+        if r["_sea"] in idp_seasons else r["points_a"], axis=1
     )
     mdf["points_b"] = mdf.apply(
-        lambda r: score_map.get((r["_sea"], r["_wk"], r["team_b_owner"]), r["points_b"]), axis=1
+        lambda r: score_map.get((r["_sea"], r["_wk"], r["team_b_owner"]), r["points_b"])
+        if r["_sea"] in idp_seasons else r["points_b"], axis=1
     )
     mdf["winner_team_id"] = mdf.apply(
         lambda r: r["team_a_id"]

@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).parents[1]))
 sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
 
 from fantasy.analytics.draft_analytics import manager_draft_grades
-from fantasy.analytics.luck import luck_metrics
+from fantasy.analytics.luck import schedule_luck
 from fantasy.analytics.standings import season_standings
 from style import inject_css
 from utils import apply_league_filter
@@ -124,26 +124,32 @@ def _render_recap(
 
     st.divider()
 
-    # --- Row 2: Luck ---
+    # --- Row 2: Schedule Luck ---
     try:
-        luck = luck_metrics(full_matchups, season, lid)
+        luck = schedule_luck(full_matchups, season, lid)
         if not luck.empty and "owner" in luck.columns:
             my_luck = luck[luck["owner"] == manager]
             if not my_luck.empty:
                 r = my_luck.iloc[0]
-                luck_rank = int(luck["luck_delta"].rank(ascending=False).iloc[luck.index[luck["owner"] == manager][0]])
                 st.subheader("🍀 Schedule Luck")
-                lc1, lc2, lc3 = st.columns(3)
+                lc1, lc2, lc3, lc4 = st.columns(4)
                 lc1.metric("Actual Wins", wins)
                 lc2.metric("Expected Wins", f"{r.get('expected_wins', 0):.1f}")
                 delta = r.get("luck_delta", 0)
                 lc3.metric("Luck Delta", f"{delta:+.1f}", delta_color="normal")
-                if delta > 1:
-                    st.success(f"You were the #{luck_rank} luckiest team — benefited from an easy schedule.")
-                elif delta < -1:
-                    st.error(f"You were the #{luck_rank} unluckiest team — deserved better.")
-                else:
-                    st.info("Your schedule was about average.")
+                opp_above = r.get("opp_above_avg", 0)
+                lc4.metric("Opp Scored vs Their Avg", f"{opp_above:+.1f}", delta_color="inverse",
+                           help="How much above their own season avg your opponents scored against you. Positive = unlucky (opponents played their best vs you).")
+                opp_win = r.get("opp_win_pct", None)
+                if opp_win is not None:
+                    sos_rank = int(luck["opp_win_pct"].rank(ascending=False).loc[luck.index[luck["owner"] == manager][0]])
+                    n_teams = len(luck)
+                    if opp_above > 2:
+                        st.error(f"Opponents played {opp_above:+.1f} pts above their avg vs you — #{sos_rank} toughest schedule (opp avg win% {opp_win:.1%}).")
+                    elif opp_above < -2:
+                        st.success(f"Opponents played {opp_above:+.1f} pts below their avg vs you — #{n_teams + 1 - sos_rank} easiest schedule (opp avg win% {opp_win:.1%}).")
+                    else:
+                        st.info(f"Schedule difficulty about average (opp avg win% {opp_win:.1%}).")
     except Exception:
         pass
 
