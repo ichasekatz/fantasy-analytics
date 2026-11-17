@@ -158,11 +158,18 @@ def _render_draft_grades(
 ) -> None:
     st.subheader("Manager Draft Grades by Season")
 
-    sel_season = st.selectbox(
-        "Season",
-        ["All Seasons"] + [str(s) for s in seasons],
-        key="dna_grade_season",
-    )
+    col_a, col_b = st.columns([2, 1])
+    with col_a:
+        sel_season = st.selectbox(
+            "Season",
+            ["All Seasons"] + [str(s) for s in seasons],
+            key="dna_grade_season",
+        )
+    with col_b:
+        avg_mode = False
+        if sel_season == "All Seasons":
+            avg_mode = st.checkbox("Career averages", value=True, key="dna_grade_avg",
+                                   help="Collapse to one row per manager, averaged across all drafts.")
 
     s = None if sel_season == "All Seasons" else int(sel_season)
     grades = manager_draft_grades(draft_df, rosters_df, season=s, league_id=lid)
@@ -171,32 +178,58 @@ def _render_draft_grades(
         st.info("No grade data available.")
         return
 
-    display = grades.rename(columns={
-        "owner_name": "Manager",
-        "season": "Season",
-        "total_draft_vorp": "Total VORP",
-        "avg_pick_vorp": "Avg VORP/Pick",
-        "steals_count": "Steals",
-        "busts_count": "Busts",
-        "keeper_count": "Keepers",
-        "non_keeper_vorp": "Non-Keeper VORP",
-        "draft_rank": "Rank",
-    })
-    for col in ["Total VORP", "Avg VORP/Pick", "Non-Keeper VORP"]:
-        if col in display.columns:
-            display[col] = display[col].round(1)
+    if avg_mode and sel_season == "All Seasons":
+        # Aggregate to one row per manager
+        agg_cols = {c: "mean" for c in ["total_draft_vorp", "avg_pick_vorp", "steals_count",
+                                         "busts_count", "keeper_count", "non_keeper_vorp"] if c in grades.columns}
+        agg_cols["season"] = "count"
+        career = grades.groupby("owner_name").agg(agg_cols).reset_index()
+        career = career.rename(columns={"season": "Drafts"})
+        career = career.sort_values("avg_pick_vorp", ascending=False).reset_index(drop=True)
+        career.insert(0, "Rank", range(1, len(career) + 1))
+        display = career.rename(columns={
+            "owner_name": "Manager",
+            "total_draft_vorp": "Avg Total VORP",
+            "avg_pick_vorp": "Avg VORP/Pick",
+            "steals_count": "Avg Steals",
+            "busts_count": "Avg Busts",
+            "keeper_count": "Avg Keepers",
+            "non_keeper_vorp": "Avg Non-Keeper VORP",
+        })
+        for col in [c for c in display.columns if "VORP" in c or "Steals" in c or "Busts" in c]:
+            if col in display.columns:
+                display[col] = display[col].round(1)
+        st.dataframe(display, use_container_width=True, hide_index=True)
+        chart_col = "Avg VORP/Pick"
+        chart_label = "Avg VORP/Pick"
+    else:
+        display = grades.rename(columns={
+            "owner_name": "Manager",
+            "season": "Season",
+            "total_draft_vorp": "Total VORP",
+            "avg_pick_vorp": "Avg VORP/Pick",
+            "steals_count": "Steals",
+            "busts_count": "Busts",
+            "keeper_count": "Keepers",
+            "non_keeper_vorp": "Non-Keeper VORP",
+            "draft_rank": "Rank",
+        })
+        for col in ["Total VORP", "Avg VORP/Pick", "Non-Keeper VORP"]:
+            if col in display.columns:
+                display[col] = display[col].round(1)
+        st.dataframe(display, use_container_width=True, hide_index=True)
+        chart_col = "Total VORP"
+        chart_label = "Draft VORP"
 
-    st.dataframe(display, use_container_width=True, hide_index=True)
-
-    if "Total VORP" in display.columns and not grades.empty:
+    if chart_col in display.columns:
         fig = px.bar(
-            display.sort_values("Total VORP", ascending=True),
-            x="Total VORP",
+            display.sort_values(chart_col, ascending=True),
+            x=chart_col,
             y="Manager",
             orientation="h",
-            color="Total VORP",
+            color=chart_col,
             color_continuous_scale=["#E53E3E", "#F7C59F", "#38A169"],
-            labels={"Total VORP": "Draft VORP"},
+            labels={chart_col: chart_label},
         )
         fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", showlegend=False, coloraxis_showscale=False)
         st.plotly_chart(fig, use_container_width=True)
