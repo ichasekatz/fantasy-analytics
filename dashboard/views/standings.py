@@ -15,7 +15,7 @@ import pandas as pd
 import numpy as np
 
 from fantasy.analytics.standings import all_play_records, career_standings, season_standings
-from utils import apply_league_filter, style_dataframe
+from utils import apply_league_filter, rebuild_matchups_offensive, style_dataframe
 
 
 def _avg_season_rank(matchups_df: pd.DataFrame, lid: str | None) -> pd.DataFrame:
@@ -145,6 +145,8 @@ def render(conn) -> None:
     st.title("📊 Standings")
 
     matchups_df = apply_league_filter(conn.execute("SELECT * FROM matchups").df())
+    rosters_df = apply_league_filter(conn.execute("SELECT season, week, owner_name, position, points, starter FROM rosters").df())
+    matchups_df = rebuild_matchups_offensive(matchups_df, rosters_df)
     seasons_df = apply_league_filter(conn.execute("SELECT season, provider FROM seasons ORDER BY season").df())
     seasons_df = seasons_df.drop_duplicates(subset=["season"])
     lid = st.session_state.get("selected_league_id")

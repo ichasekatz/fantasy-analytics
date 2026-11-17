@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).parents[1]))
 sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
 
 from fantasy.analytics.standings import season_standings
-from utils import apply_league_filter, filter_offensive_rosters, season_has_idp
+from utils import apply_league_filter, filter_offensive_rosters, rebuild_matchups_offensive, season_has_idp
 
 _known_seasons = [2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026]
 
@@ -69,34 +69,7 @@ def render(conn) -> None:
     st.divider()
 
     # --- IDP: rebuild matchup scores from offensive-only rosters when needed ---
-    if exclude_def and not season_roster.empty:
-        off_ros = filter_offensive_rosters(
-            season_roster[season_roster["starter"].fillna(False)].copy()
-        )
-        off_ros["week"] = pd.to_numeric(off_ros["week"], errors="coerce")
-        off_ros = off_ros.dropna(subset=["week"])
-        off_ros["week"] = off_ros["week"].astype(int)
-        weekly_off = off_ros.groupby(["week", "owner_name"])["points"].sum().reset_index()
-        score_map = {(int(r["week"]), r["owner_name"]): r["points"] for _, r in weekly_off.iterrows()}
-
-        mdf = season_matchups.copy()
-        mdf["_wk"] = pd.to_numeric(mdf["week"], errors="coerce").fillna(0).astype(int)
-        mdf["points_a"] = mdf.apply(
-            lambda r: score_map.get((r["_wk"], r["team_a_owner"]), r["points_a"]), axis=1
-        )
-        mdf["points_b"] = mdf.apply(
-            lambda r: score_map.get((r["_wk"], r["team_b_owner"]), r["points_b"]), axis=1
-        )
-        mdf["winner_team_id"] = mdf.apply(
-            lambda r: r["team_a_id"]
-            if pd.notna(r["points_a"]) and pd.notna(r["points_b"]) and r["points_a"] >= r["points_b"]
-            else r["team_b_id"],
-            axis=1,
-        )
-        mdf = mdf.drop(columns=["_wk"])
-        season_matchups_idp = mdf
-    else:
-        season_matchups_idp = season_matchups
+    season_matchups_idp = rebuild_matchups_offensive(season_matchups, season_roster)
 
     # --- Section 2: Final Standings ---
     st.subheader("Final Standings")

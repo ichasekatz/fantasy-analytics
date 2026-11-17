@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
 from fantasy.analytics.bad_beats import bad_beat_index
 from fantasy.analytics.records import all_records
 from fantasy.analytics.standings import career_standings, season_standings
-from utils import apply_league_filter, style_dataframe
+from utils import apply_league_filter, rebuild_matchups_offensive, style_dataframe
 
 
 def _avg_season_rank(matchups_df: pd.DataFrame, lid: str | None) -> pd.DataFrame:
@@ -74,6 +74,8 @@ def render(conn) -> None:
     st.title("🏆 All-Time Records")
 
     matchups_df = apply_league_filter(conn.execute("SELECT * FROM matchups").df())
+    rosters_df = apply_league_filter(conn.execute("SELECT season, week, owner_name, position, points, starter FROM rosters").df())
+    matchups_df = rebuild_matchups_offensive(matchups_df, rosters_df)
 
     lid = st.session_state.get("selected_league_id")
 

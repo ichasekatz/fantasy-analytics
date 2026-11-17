@@ -144,6 +144,12 @@ def apply_league_filter(df: pd.DataFrame) -> pd.DataFrame:
         yr_min, yr_max = season_range
         df = df[(df["season"] >= yr_min) & (df["season"] <= yr_max)].copy()
 
+    # IDP exclusion: remove rows whose position is purely defensive
+    if st.session_state.get("exclude_defensive", False) and "position" in df.columns:
+        df = df[~df["position"].apply(
+            lambda p: is_defensive_position(str(p)) if pd.notna(p) else False
+        )].copy()
+
     # Player exclusions (session-only, always applied)
     excluded: list[str] = st.session_state.get("excluded_players", [])
     if excluded and "player" in df.columns:
@@ -183,6 +189,50 @@ def filter_offensive_rosters(roster_df: pd.DataFrame) -> pd.DataFrame:
     """Remove rows where position is purely defensive."""
     mask = ~roster_df["position"].apply(lambda p: is_defensive_position(str(p)) if pd.notna(p) else False)
     return roster_df[mask].copy()
+
+
+def rebuild_matchups_offensive(matchups_df: pd.DataFrame, rosters_df: pd.DataFrame) -> pd.DataFrame:
+    """Recompute points_a/points_b/winner_team_id from offensive-only starters.
+
+    Use when exclude_defensive is True to strip IDP scores from standings.
+    Returns matchups_df unchanged if rosters_df is empty or no IDP flag set.
+    """
+    if rosters_df.empty or not st.session_state.get("exclude_defensive", False):
+        return matchups_df
+
+    starters = rosters_df[rosters_df["starter"].fillna(False)].copy()
+    starters = filter_offensive_rosters(starters)
+    starters["points"] = pd.to_numeric(starters["points"], errors="coerce").fillna(0)
+    starters["week"] = pd.to_numeric(starters["week"], errors="coerce")
+    starters = starters.dropna(subset=["week"])
+    starters["week"] = starters["week"].astype(int)
+
+    weekly = (
+        starters.groupby(["season", "week", "owner_name"])["points"]
+        .sum()
+        .reset_index()
+    )
+    score_map = {
+        (int(r["season"]), int(r["week"]), r["owner_name"]): r["points"]
+        for _, r in weekly.iterrows()
+    }
+
+    mdf = matchups_df.copy()
+    mdf["_wk"] = pd.to_numeric(mdf["week"], errors="coerce").fillna(0).astype(int)
+    mdf["_sea"] = pd.to_numeric(mdf["season"], errors="coerce").fillna(0).astype(int)
+    mdf["points_a"] = mdf.apply(
+        lambda r: score_map.get((r["_sea"], r["_wk"], r["team_a_owner"]), r["points_a"]), axis=1
+    )
+    mdf["points_b"] = mdf.apply(
+        lambda r: score_map.get((r["_sea"], r["_wk"], r["team_b_owner"]), r["points_b"]), axis=1
+    )
+    mdf["winner_team_id"] = mdf.apply(
+        lambda r: r["team_a_id"]
+        if pd.notna(r["points_a"]) and pd.notna(r["points_b"]) and r["points_a"] >= r["points_b"]
+        else r["team_b_id"],
+        axis=1,
+    )
+    return mdf.drop(columns=["_wk", "_sea"])
 
 
 _DYNASTY_LEAGUE_KEYWORDS = {"dynasty"}
