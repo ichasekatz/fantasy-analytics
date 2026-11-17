@@ -92,4 +92,3 @@ def render(conn) -> None:
         st.plotly_chart(fig2, use_container_width=True)
 
     st.divider()
-    st.caption("⚠️ Note: 2021 season data is currently missing from this export.")

@@ -18,7 +18,6 @@ from fantasy.identity.enrichment import enrich_matchups
 from fantasy.identity.registry import load_registry
 from utils import apply_league_filter
 
-_missing_seasons = [2021]
 _identity_path = Path(__file__).parents[2] / "data" / "identity" / "manager_aliases.json"
 
 
@@ -133,9 +132,6 @@ def render(conn) -> None:
     if rows:
         rows_df = pd.DataFrame(rows)
         st.dataframe(rows_df, use_container_width=True, hide_index=True)
-    if _missing_seasons:
-        st.caption(f"⚠️ Missing data for season(s): {', '.join(str(s) for s in _missing_seasons)}")
-
     st.divider()
 
     # Weekly scoring distribution

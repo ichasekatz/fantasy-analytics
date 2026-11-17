@@ -15,8 +15,7 @@ sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
 from fantasy.analytics.standings import season_standings
 from utils import apply_league_filter
 
-_known_seasons = [2019, 2020, 2022, 2023, 2024, 2025, 2026]
-_missing_seasons = [2021]
+_known_seasons = [2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026]
 
 
 def render(conn) -> None:
@@ -26,7 +25,6 @@ def render(conn) -> None:
         conn: Open DuckDB connection.
     """
     st.title("📈 Season Explorer")
-    st.caption("⚠️ Note: 2021 season data is currently missing.")
 
     matchups_df = apply_league_filter(conn.execute("SELECT * FROM matchups").df())
     seasons_df = apply_league_filter(conn.execute("SELECT * FROM seasons ORDER BY season").df())
