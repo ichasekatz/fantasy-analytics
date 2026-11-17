@@ -9,6 +9,9 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+# Columns in any DataFrame that contain owner names and should be resolved
+_OWNER_COLS = {"owner_name", "team_a_owner", "team_b_owner", "owner", "champion", "runner_up"}
+
 _project_root = Path(__file__).parents[1]
 _leagues_config_path = _project_root / "config" / "leagues.json"
 
@@ -42,6 +45,38 @@ def _primary_league_ids() -> set[str]:
         for e in _leagues_config().get("leagues", [])
         if e.get("primary", True)
     }
+
+
+def build_name_map(conn) -> dict[str, str]:
+    """Build raw_name → canonical display_name map from the identity registry.
+
+    Returns empty dict if identity tables are missing or empty.
+    """
+    try:
+        rows = conn.execute("""
+            SELECT ma.raw_name, cm.display_name
+            FROM manager_aliases ma
+            JOIN canonical_managers cm ON ma.canonical_id = cm.canonical_id
+        """).fetchall()
+        return {raw: display for raw, display in rows if raw != display}
+    except Exception:
+        return {}
+
+
+def resolve_owner_names(df: pd.DataFrame) -> pd.DataFrame:
+    """Replace raw owner name strings with canonical display names.
+
+    Uses the name map cached in st.session_state['_name_map'].
+    No-op if the map is empty or the column doesn't exist.
+    """
+    name_map: dict[str, str] = st.session_state.get("_name_map", {})
+    if not name_map:
+        return df
+    df = df.copy()
+    for col in _OWNER_COLS:
+        if col in df.columns:
+            df[col] = df[col].map(lambda x: name_map.get(x, x) if isinstance(x, str) else x)
+    return df
 
 
 def apply_league_filter(df: pd.DataFrame) -> pd.DataFrame:
@@ -82,4 +117,4 @@ def apply_league_filter(df: pd.DataFrame) -> pd.DataFrame:
     if excluded and "player" in df.columns:
         df = df[~df["player"].isin(excluded)]
 
-    return df
+    return resolve_owner_names(df)

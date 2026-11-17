@@ -60,6 +60,11 @@ st.set_page_config(
 conn = _get_conn()
 inject_css()
 
+# Seed canonical name map once per session so all pages resolve aliases
+if "_name_map" not in st.session_state:
+    from utils import build_name_map
+    st.session_state["_name_map"] = build_name_map(conn)
+
 pages = {
     # --- Core ---
     "🏠 Overview": "overview",

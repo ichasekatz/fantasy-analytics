@@ -80,8 +80,8 @@ def _remove_ghost_owners(conn: duckdb.DuckDBPyConnection) -> None:
 def _auto_sync_names(conn: duckdb.DuckDBPyConnection) -> None:
     """Merge owners with identical names across leagues into one canonical profile.
 
-    Runs silently on every data load. Saves any new merges to the registry file
-    and updates the identity tables in the connection.
+    Always loads the full registry into identity tables, then auto-syncs any
+    new exact-name matches and saves them back to disk.
 
     Args:
         conn (duckdb.DuckDBPyConnection): Open DuckDB connection.
@@ -90,6 +90,8 @@ def _auto_sync_names(conn: duckdb.DuckDBPyConnection) -> None:
         return
     owners_df = conn.execute("SELECT * FROM owners").df()
     registry = load_registry(_identity_path)
+    # Always populate identity tables from the full registry
+    update_identity_tables(conn, registry)
     updated, num_new = auto_sync_exact_names(owners_df, registry)
     if num_new > 0:
         save_registry(updated, _identity_path)
@@ -238,5 +240,6 @@ def load_from_export(export_path: Path, db_path: Path = _default_db_path) -> duc
         initialize_database(conn, frames)
     else:
         _ensure_identity_tables(conn)
+        _auto_sync_names(conn)
 
     return conn
