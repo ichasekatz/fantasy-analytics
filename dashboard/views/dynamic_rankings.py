@@ -12,7 +12,7 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).parents[1]))
 sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
 
-from fantasy.analytics.luck import luck_analysis
+from fantasy.analytics.luck import luck_metrics
 from fantasy.analytics.standings import career_standings, season_standings
 from utils import apply_league_filter
 
@@ -197,7 +197,7 @@ def _compute_composite(
     exp_wins: dict[str, float] = {}
     for season in seasons_in_view:
         try:
-            luck = luck_analysis(view_df, int(season), lid)
+            luck = luck_metrics(view_df, int(season), lid)
             if not luck.empty and "expected_wins" in luck.columns:
                 for _, lrow in luck.iterrows():
                     exp_wins[lrow["owner"]] = exp_wins.get(lrow["owner"], 0) + lrow["expected_wins"]
