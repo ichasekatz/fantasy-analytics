@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
 
 from fantasy.analytics.trade_eval import evaluate_all_trades, player_drop_regret, trade_leaderboard
 from fantasy.analytics.transactions import trade_history, waiver_activity
-from utils import apply_league_filter, resolve_owner_names
+from utils import apply_league_filter, resolve_owner_names, style_dataframe
 
 
 def _parse_trade_row(row: pd.Series) -> dict | None:
@@ -205,7 +205,7 @@ def _render_volume(transactions_df: pd.DataFrame, lid: str | None) -> None:
 
     if player_counts:
         pc_df = pd.DataFrame(list(player_counts.items()), columns=["Player", "Times Traded"]).sort_values("Times Traded", ascending=False).head(20)
-        st.dataframe(pc_df, use_container_width=True, hide_index=True)
+        st.dataframe(style_dataframe(pc_df, higher_is_better=["Times Traded"]), use_container_width=True, hide_index=True)
 
 
 def _render_waiver(transactions_df: pd.DataFrame, lid: str | None) -> None:
@@ -237,7 +237,11 @@ def _render_waiver(transactions_df: pd.DataFrame, lid: str | None) -> None:
         "total_drops": "Drops", "net_adds": "Net", "add_drop_transactions": "Add/Drops",
     }
     st.dataframe(
-        activity[display_cols].rename(columns=rename).sort_values("Adds", ascending=False),
+        style_dataframe(
+            activity[display_cols].rename(columns=rename).sort_values("Adds", ascending=False),
+            higher_is_better=["Adds", "Net", "Add/Drops"],
+            lower_is_better=["Drops"],
+        ),
         use_container_width=True,
         hide_index=True,
     )
@@ -328,11 +332,15 @@ def _render_grades(transactions_df: pd.DataFrame, rosters_df: pd.DataFrame, lid:
         fig_lb.update_coloraxes(showscale=False)
         fig_lb.update_layout(height=max(350, len(lb_show) * 35), yaxis={"categoryorder": "total ascending"})
         st.plotly_chart(fig_lb, use_container_width=True)
-        st.dataframe(lb_show.rename(columns={
+        lb_display = lb_show.rename(columns={
             "owner": "Manager", "total_trades": "Trades", "trades_won": "Won",
             "trades_lost": "Lost", "trades_even": "Even",
             "total_net_started_points": "Net Pts", "avg_net_per_trade": "Avg Net/Trade",
-        }), use_container_width=True, hide_index=True)
+        })
+        st.dataframe(
+            style_dataframe(lb_display, higher_is_better=["Won", "Net Pts", "Avg Net/Trade"], lower_is_better=["Lost"]),
+            use_container_width=True, hide_index=True,
+        )
         st.divider()
 
     _VERDICT_ICON = {"Won": "🟢", "Lost": "🔴", "Even": "⚪"}
@@ -413,4 +421,7 @@ def _render_drop_regret(transactions_df: pd.DataFrame, rosters_df: pd.DataFrame,
         "future_started_points": "Started Pts After", "future_started_weeks": "Starts After",
         "regret_score": "Regret Score", "verdict": "Verdict",
     })
-    st.dataframe(display, use_container_width=True, hide_index=True)
+    st.dataframe(
+        style_dataframe(display, higher_is_better=["Started Pts After", "Starts After", "Regret Score"]),
+        use_container_width=True, hide_index=True,
+    )
