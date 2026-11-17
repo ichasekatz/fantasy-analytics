@@ -153,7 +153,7 @@ def render(conn) -> None:
     provider_map = dict(zip(seasons_df["season"], seasons_df["provider"], strict=False))
     season_labels = ["All Time"] + [f"{s} ({provider_map.get(s, '?')})" for s in seasons]
 
-    selected_label = st.selectbox("Season", season_labels, index=len(season_labels) - 1)
+    selected_label = st.selectbox("Season", season_labels, index=0)
     all_time = selected_label == "All Time"
     selected_season = None if all_time else seasons[season_labels.index(selected_label) - 1]
     min_seasons_filter = st.session_state.get("min_seasons_played", 1)
