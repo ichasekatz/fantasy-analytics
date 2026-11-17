@@ -131,7 +131,7 @@ def _render_categories(career) -> None:
     cornerstones = career[(career["total_managers"] <= 2) & (career["total_seasons"] >= 3)].sort_values("total_started_points", ascending=False).head(20)
     _show_category(cornerstones, ["player", "position", "total_managers", "total_seasons", "total_started_points", "best_owner"],
                    {"player": "Player", "position": "Pos", "total_managers": "Managers", "total_seasons": "Seasons", "total_started_points": "Started Pts", "best_owner": "Owner"},
-                   higher_is_better=["Seasons", "Started Pts"])
+                   higher_is_better=["Seasons", "Started Pts"], lower_is_better=["Managers"])
 
 
 def _show_category(df, cols, rename, higher_is_better=None, lower_is_better=None) -> None:
