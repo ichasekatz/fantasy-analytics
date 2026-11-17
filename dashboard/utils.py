@@ -220,9 +220,9 @@ def apply_league_filter(df: pd.DataFrame) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 
 # Individual IDP defensive positions only — K, DST/DEF/D_ST are intentionally excluded.
-_DEFENSIVE_POSITION_TOKENS = {"CB", "DB", "DE", "DL", "DT", "LB", "S", "SS", "FS", "IDP_FLEX"}
+_DEFENSIVE_POSITION_TOKENS = {"CB", "DB", "DE", "DL", "DT", "HC", "LB", "S", "SS", "FS", "IDP_FLEX"}
 # Non-IDP positions that must never be treated as defensive regardless of naming
-_OFFENSIVE_POSITION_TOKENS = {"K", "DST", "DEF", "D_ST", "D/ST", "HC", "P", "QB", "RB", "WR", "TE", "FLEX", "SUPER_FLEX", "OP"}
+_OFFENSIVE_POSITION_TOKENS = {"K", "DST", "DEF", "D_ST", "D/ST", "P", "QB", "RB", "WR", "TE", "FLEX", "SUPER_FLEX", "OP"}
 
 
 def is_defensive_position(pos: str) -> bool:

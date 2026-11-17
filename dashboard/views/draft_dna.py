@@ -20,7 +20,7 @@ from fantasy.analytics.draft_analytics import (
     vorp,
     worst_picks_ever,
 )
-from utils import apply_league_filter, is_defensive_position
+from utils import apply_league_filter, is_defensive_position, style_dataframe
 
 
 def render(conn) -> None:
@@ -253,7 +253,9 @@ def _render_draft_grades(
         for col in [c for c in display.columns if "VORP" in c or "Steals" in c or "Busts" in c]:
             if col in display.columns:
                 display[col] = display[col].round(1)
-        st.dataframe(display, use_container_width=True, hide_index=True)
+        vorp_hib = [c for c in display.columns if "VORP" in c or "Steals" in c]
+        vorp_lib = [c for c in display.columns if "Busts" in c]
+        st.dataframe(style_dataframe(display, higher_is_better=vorp_hib, lower_is_better=vorp_lib), use_container_width=True, hide_index=True)
         chart_col = "Avg VORP/Pick"
         chart_label = "Avg VORP/Pick"
     else:
@@ -271,7 +273,9 @@ def _render_draft_grades(
         for col in ["Total VORP", "Avg VORP/Pick", "Non-Keeper VORP"]:
             if col in display.columns:
                 display[col] = display[col].round(1)
-        st.dataframe(display, use_container_width=True, hide_index=True)
+        st.dataframe(style_dataframe(display,
+            higher_is_better=["Total VORP", "Avg VORP/Pick", "Steals", "Non-Keeper VORP"],
+            lower_is_better=["Busts"]), use_container_width=True, hide_index=True)
         chart_col = "Total VORP"
         chart_label = "Draft VORP"
 
@@ -295,45 +299,83 @@ def _render_pick_value_map(
     lid: str | None,
     seasons: list,
 ) -> None:
+    import numpy as np
+
     st.subheader("Pick Value Map")
     st.caption("Actual VORP delivered vs. pick slot. Dots above the trend line = value picks. Below = busts.")
 
-    sel_season = st.selectbox(
-        "Season",
-        [str(s) for s in seasons],
-        key="dna_map_season",
-        index=len(seasons) - 1,
-    )
+    col_a, col_b = st.columns(2)
+    with col_a:
+        sel_season = st.selectbox(
+            "Season",
+            ["All Time"] + [str(s) for s in seasons],
+            key="dna_map_season",
+            index=0,
+        )
+    with col_b:
+        owners = sorted(draft_df["owner_name"].dropna().unique())
+        sel_owner = st.selectbox("Manager", ["All Managers"] + list(owners), key="dna_map_owner")
 
-    dpv = draft_pick_value(draft_df, rosters_df, season=int(sel_season), league_id=lid)
+    # Build dpv
+    if sel_season == "All Time":
+        all_dpv = []
+        for s in seasons:
+            _dpv = draft_pick_value(draft_df, rosters_df, season=int(s), league_id=lid)
+            if not _dpv.empty:
+                _dpv = _dpv.copy()
+                _dpv["season"] = int(s)
+                all_dpv.append(_dpv)
+        if not all_dpv:
+            st.info("No pick value data.")
+            return
+        dpv = pd.concat(all_dpv, ignore_index=True)
+    else:
+        dpv = draft_pick_value(draft_df, rosters_df, season=int(sel_season), league_id=lid)
+        if not dpv.empty:
+            dpv = dpv.copy()
+            dpv["season"] = int(sel_season)
 
     if dpv.empty:
-        st.info("No pick value data for this season.")
+        st.info("No pick value data for this selection.")
         return
 
     dpv = dpv.dropna(subset=["vorp"])
-    dpv["label"] = dpv["label"].fillna("unknown")
-    dpv["color"] = dpv["label"].map({"steal": "#38A169", "bust": "#E53E3E", "fair": "#718096", "unknown": "#A0AEC0"})
-    dpv["label_display"] = dpv["label"].str.title()
+
+    if sel_owner != "All Managers":
+        dpv = dpv[dpv["owner_name"] == sel_owner]
+
+    if dpv.empty:
+        st.info("No picks found for this selection.")
+        return
+
+    # Gradient scatter: color by VORP value
+    vmin = float(dpv["vorp"].min())
+    vmax = float(dpv["vorp"].max())
+    hover_text = dpv["player"] + " (" + dpv["position"].fillna("?") + ")" + (
+        " — " + dpv["season"].astype(str) if sel_season == "All Time" else ""
+    ) + "<br>Owner: " + dpv["owner_name"].fillna("?")
 
     fig = go.Figure()
-
-    for label_val, color in [("Steal", "#38A169"), ("Fair", "#718096"), ("Bust", "#E53E3E"), ("Unknown", "#A0AEC0")]:
-        subset = dpv[dpv["label_display"] == label_val]
-        if not subset.empty:
-            fig.add_trace(go.Scatter(
-                x=subset["overall"],
-                y=subset["vorp"],
-                mode="markers",
-                name=label_val,
-                marker=dict(color=color, size=10, opacity=0.8),
-                text=subset["player"] + " (" + subset["position"] + ")",
-                hovertemplate="%{text}<br>Pick #%{x}<br>VORP: %{y:.1f}<extra></extra>",
-            ))
+    fig.add_trace(go.Scatter(
+        x=dpv["overall"],
+        y=dpv["vorp"],
+        mode="markers",
+        marker=dict(
+            color=dpv["vorp"],
+            colorscale=[[0.0, "#E53E3E"], [0.5, "#F7C59F"], [1.0, "#38A169"]],
+            cmin=vmin,
+            cmax=vmax,
+            size=9,
+            opacity=0.85,
+            colorbar=dict(title="VORP", thickness=12),
+        ),
+        text=hover_text,
+        hovertemplate="%{text}<br>Pick #%{x}<br>VORP: %{y:.1f}<extra></extra>",
+        showlegend=False,
+    ))
 
     # Trend line
     if len(dpv) > 2:
-        import numpy as np
         z = np.polyfit(dpv["overall"].fillna(0), dpv["vorp"].fillna(0), 2)
         p = np.poly1d(z)
         x_range = range(int(dpv["overall"].min()), int(dpv["overall"].max()) + 1)
@@ -356,15 +398,16 @@ def _render_pick_value_map(
     st.plotly_chart(fig, use_container_width=True)
 
     st.subheader("Pick Detail")
-    cols_show = [c for c in ["overall", "round", "owner_name", "player", "position", "keeper", "vorp", "label"] if c in dpv.columns]
+    all_time = sel_season == "All Time"
+    cols_show = [c for c in (["season"] if all_time else []) + ["overall", "round", "owner_name", "player", "position", "keeper", "vorp", "label"] if c in dpv.columns]
     display = dpv[cols_show].rename(columns={
-        "overall": "Pick", "round": "Rd", "owner_name": "Owner",
+        "season": "Season", "overall": "Pick", "round": "Rd", "owner_name": "Owner",
         "player": "Player", "position": "Pos", "keeper": "K",
         "vorp": "VORP", "label": "Label",
     })
     if "VORP" in display.columns:
         display["VORP"] = display["VORP"].round(1)
-    st.dataframe(display, use_container_width=True, hide_index=True)
+    st.dataframe(style_dataframe(display, higher_is_better=["VORP"]), use_container_width=True, hide_index=True)
 
 
 def _render_best_picks(draft_df: pd.DataFrame, rosters_df: pd.DataFrame, lid: str | None) -> None:
@@ -386,8 +429,7 @@ def _render_best_picks(draft_df: pd.DataFrame, rosters_df: pd.DataFrame, lid: st
     for col in ["VORP", "Total Pts"]:
         if col in display.columns:
             display[col] = display[col].round(1)
-
-    st.dataframe(display, use_container_width=True, hide_index=True)
+    st.dataframe(style_dataframe(display, higher_is_better=["VORP", "Total Pts"]), use_container_width=True, hide_index=True)
 
 
 def _render_worst_picks(draft_df: pd.DataFrame, rosters_df: pd.DataFrame, lid: str | None) -> None:
@@ -409,5 +451,4 @@ def _render_worst_picks(draft_df: pd.DataFrame, rosters_df: pd.DataFrame, lid: s
     for col in ["VORP", "Total Pts"]:
         if col in display.columns:
             display[col] = display[col].round(1)
-
-    st.dataframe(display, use_container_width=True, hide_index=True)
+    st.dataframe(style_dataframe(display, lower_is_better=["VORP", "Total Pts"]), use_container_width=True, hide_index=True)
