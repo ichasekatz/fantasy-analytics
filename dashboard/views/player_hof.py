@@ -109,30 +109,38 @@ def _render_categories(career) -> None:
     st.subheader("Most Consistently Drafted")
     most_drafted = career[career["times_drafted"] > 0].sort_values("times_drafted", ascending=False).head(20)
     _show_category(most_drafted, ["player", "position", "times_drafted", "total_seasons", "total_started_points"],
-                   {"player": "Player", "position": "Pos", "times_drafted": "Times Drafted", "total_seasons": "Seasons", "total_started_points": "Started Pts"})
+                   {"player": "Player", "position": "Pos", "times_drafted": "Times Drafted", "total_seasons": "Seasons", "total_started_points": "Started Pts"},
+                   higher_is_better=["Times Drafted", "Seasons", "Started Pts"])
 
     st.divider()
     st.subheader("One-Season Wonders")
     wonders = career[(career["total_seasons"] == 1) & (career["total_started_points"] > 100)].sort_values("total_started_points", ascending=False).head(20)
     _show_category(wonders, ["player", "position", "total_started_points", "best_owner"],
-                   {"player": "Player", "position": "Pos", "total_started_points": "Started Pts", "best_owner": "Owner"})
+                   {"player": "Player", "position": "Pos", "total_started_points": "Started Pts", "best_owner": "Owner"},
+                   higher_is_better=["Started Pts"])
 
     st.divider()
     st.subheader("Most Managers — Passed Around the Most")
     most_owners = career.sort_values("total_managers", ascending=False).head(20)
     _show_category(most_owners, ["player", "position", "total_managers", "total_seasons", "total_started_points"],
-                   {"player": "Player", "position": "Pos", "total_managers": "Managers", "total_seasons": "Seasons", "total_started_points": "Started Pts"})
+                   {"player": "Player", "position": "Pos", "total_managers": "Managers", "total_seasons": "Seasons", "total_started_points": "Started Pts"},
+                   higher_is_better=["Managers", "Seasons", "Started Pts"])
 
     st.divider()
     st.subheader("Franchise Cornerstones")
     cornerstones = career[(career["total_managers"] <= 2) & (career["total_seasons"] >= 3)].sort_values("total_started_points", ascending=False).head(20)
     _show_category(cornerstones, ["player", "position", "total_managers", "total_seasons", "total_started_points", "best_owner"],
-                   {"player": "Player", "position": "Pos", "total_managers": "Managers", "total_seasons": "Seasons", "total_started_points": "Started Pts", "best_owner": "Owner"})
+                   {"player": "Player", "position": "Pos", "total_managers": "Managers", "total_seasons": "Seasons", "total_started_points": "Started Pts", "best_owner": "Owner"},
+                   higher_is_better=["Seasons", "Started Pts"])
 
 
-def _show_category(df, cols, rename) -> None:
+def _show_category(df, cols, rename, higher_is_better=None, lower_is_better=None) -> None:
     if df.empty:
         st.info("None found.")
         return
     available = [c for c in cols if c in df.columns]
-    st.dataframe(df[available].rename(columns=rename), use_container_width=True, hide_index=True)
+    display = df[available].rename(columns=rename)
+    st.dataframe(
+        style_dataframe(display, higher_is_better=higher_is_better or [], lower_is_better=lower_is_better or []),
+        use_container_width=True, hide_index=True,
+    )
