@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
 
 from fantasy.analytics.player_ownership import player_career_stats, player_ownership_history
 from style import inject_css
-from utils import apply_league_filter, style_dataframe
+from utils import apply_league_filter, is_defensive_position, style_dataframe
 
 _POS_COLORS = {"QB": "#E53E3E", "RB": "#38A169", "WR": "#3182CE", "TE": "#D69E2E", "K": "#718096", "DST": "#805AD5"}
 
@@ -106,10 +106,10 @@ def _render_by_season(rosters_df, draft_df) -> None:
 
 
 def _render_categories(career) -> None:
-    all_positions = sorted(career["position"].dropna().unique().tolist()) if "position" in career.columns else []
-    pos_filter = st.multiselect("Filter by position", all_positions, default=[], key="phof_cat_pos")
-    if pos_filter:
-        career = career[career["position"].isin(pos_filter)]
+    if st.checkbox("Exclude defensive players (IDP)", value=False, key="phof_cat_excl_def"):
+        career = career[~career["position"].apply(
+            lambda p: is_defensive_position(str(p)) if p and str(p) != "nan" else False
+        )]
 
     st.subheader("Most Consistently Drafted")
     most_drafted = career[career["times_drafted"] > 0].sort_values("times_drafted", ascending=False).head(20)
