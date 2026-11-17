@@ -258,12 +258,13 @@ def _render_pick_value_map(
         return
 
     dpv = dpv.dropna(subset=["vorp"])
-    dpv["color"] = dpv["label"].map({"steal": "#38A169", "bust": "#E53E3E", "fair": "#718096", "unknown": "#4A5568"})
+    dpv["label"] = dpv["label"].fillna("unknown")
+    dpv["color"] = dpv["label"].map({"steal": "#38A169", "bust": "#E53E3E", "fair": "#718096", "unknown": "#A0AEC0"})
     dpv["label_display"] = dpv["label"].str.title()
 
     fig = go.Figure()
 
-    for label_val, color in [("Steal", "#38A169"), ("Fair", "#718096"), ("Bust", "#E53E3E"), ("Unknown", "#4A5568")]:
+    for label_val, color in [("Steal", "#38A169"), ("Fair", "#718096"), ("Bust", "#E53E3E"), ("Unknown", "#A0AEC0")]:
         subset = dpv[dpv["label_display"] == label_val]
         if not subset.empty:
             fig.add_trace(go.Scatter(
