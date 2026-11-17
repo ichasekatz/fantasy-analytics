@@ -10,8 +10,72 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).parents[1]))
 sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
 
+import pandas as pd
+
 from fantasy.analytics.standings import all_play_records, career_standings, season_standings
 from utils import apply_league_filter
+
+
+def _schedule_justice(matchups_df: pd.DataFrame, season: int, lid: str | None) -> None:
+    """Show who got robbed / who snuck in based on all-play rank vs actual playoffs."""
+    ap = all_play_records(matchups_df, season, league_id=lid)
+    if ap.empty:
+        return
+
+    playoff_rows = matchups_df[
+        (matchups_df["season"] == season) &
+        matchups_df["is_playoff"].fillna(False)
+    ]
+    if lid:
+        playoff_rows = playoff_rows[playoff_rows["league_id"] == lid]
+    playoff_owners = set(playoff_rows["team_a_owner"].tolist()) | set(playoff_rows["team_b_owner"].tolist())
+
+    if not playoff_owners:
+        return  # season still in progress
+
+    # Regular-season points for ranking
+    reg = matchups_df[
+        (matchups_df["season"] == season) &
+        ~matchups_df["is_playoff"].fillna(False) &
+        ~matchups_df["is_consolation"].fillna(False) &
+        ~matchups_df["is_championship"].fillna(False)
+    ]
+    if lid:
+        reg = reg[reg["league_id"] == lid]
+
+    pts_a = reg[["team_a_owner", "points_a"]].rename(columns={"team_a_owner": "owner", "points_a": "pts"})
+    pts_b = reg[["team_b_owner", "points_b"]].rename(columns={"team_b_owner": "owner", "points_b": "pts"})
+    total_pts = pd.concat([pts_a, pts_b]).groupby("owner")["pts"].sum().reset_index(name="total_pts")
+
+    ap = ap.merge(total_pts, on="owner", how="left")
+    ap["made_playoffs"] = ap["owner"].isin(playoff_owners)
+    ap["pts_rank"] = ap["total_pts"].rank(ascending=False, method="min").astype(int)
+
+    n_playoff = len(playoff_owners)
+    snubbed = ap[~ap["made_playoffs"]].sort_values("ap_win_pct", ascending=False)
+    lucky_in = ap[ap["made_playoffs"]].sort_values("ap_win_pct", ascending=True)
+
+    st.divider()
+    st.subheader("⚖️ Schedule Justice")
+
+    col_rob, col_luck = st.columns(2)
+    with col_rob:
+        st.markdown("**💔 Robbed — deserved playoffs, missed out**")
+        for _, r in snubbed.head(3).iterrows():
+            pts_note = f" · #{int(r['pts_rank'])} in scoring" if pd.notna(r.get("total_pts")) else ""
+            st.error(
+                f"**{r['owner']}** — {r['ap_win_pct']:.1%} all-play win%"
+                f" (would've ranked #{int(r['ap_rank'])} of {len(ap)}){pts_note}"
+            )
+
+    with col_luck:
+        st.markdown("**🍀 Lucky — made playoffs despite schedule help**")
+        for _, r in lucky_in.head(3).iterrows():
+            pts_note = f" · #{int(r['pts_rank'])} in scoring" if pd.notna(r.get("total_pts")) else ""
+            st.warning(
+                f"**{r['owner']}** — {r['ap_win_pct']:.1%} all-play win%"
+                f" (would've ranked #{int(r['ap_rank'])} of {len(ap)}){pts_note}"
+            )
 
 
 def render(conn) -> None:
@@ -99,3 +163,6 @@ def render(conn) -> None:
                     "All-play win% = how often each team would win if they played every other team each week. "
                     "Removes schedule luck."
                 )
+
+    if not all_time:
+        _schedule_justice(matchups_df, selected_season, lid)
