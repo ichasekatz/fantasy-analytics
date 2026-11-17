@@ -440,7 +440,7 @@ def _render_best_picks(draft_df: pd.DataFrame, rosters_df: pd.DataFrame, lid: st
         sel_rd = st.selectbox("Round", ["All Rounds"] + [f"Round {r}" for r in _rounds], key="best_picks_rd")
     adp_adj = st.checkbox(
         "Account for ADP (rank by value above expected pick slot)",
-        value=False, key="best_picks_adp",
+        value=True, key="best_picks_adp",
         help="Off: sorts by raw VORP (best absolute performers). On: sorts by VORP minus expected VORP at that pick — true steals.",
     )
     st.caption("**ADP off:** best absolute performers. **ADP on:** biggest steals relative to where they were drafted." if adp_adj else "**ADP off:** best absolute performers. **ADP on:** biggest steals relative to where they were drafted.")
@@ -483,7 +483,7 @@ def _render_worst_picks(draft_df: pd.DataFrame, rosters_df: pd.DataFrame, lid: s
         sel_rd = st.selectbox("Round", ["All Rounds"] + [f"Round {r}" for r in _rounds], key="worst_picks_rd")
     adp_adj = st.checkbox(
         "Account for ADP (rank by value below expected pick slot)",
-        value=False, key="worst_picks_adp",
+        value=True, key="worst_picks_adp",
         help="Off: sorts by raw VORP (biggest absolute busts). On: sorts by VORP minus expected VORP at that pick — biggest disappointments relative to draft slot.",
     )
     _df = draft_df if sel_yr == "All Time" else draft_df[draft_df["season"] == int(sel_yr)]
