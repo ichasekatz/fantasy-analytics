@@ -178,18 +178,25 @@ def monte_carlo_standings(
     season: int,
     n_sims: int = 1000,
     league_id: str | None = None,
+    through_week: int | None = None,
 ) -> pd.DataFrame:
-    """Monte Carlo schedule simulation: randomly reassign weekly matchups.
+    """Monte Carlo playoff probability, optionally as-of a specific week.
 
-    Keeps each team's actual weekly scores fixed. In each simulation, randomly
-    pairs teams each week into valid matchups (each team plays exactly once per
-    week). Counts wins across all simulations.
+    When through_week is None (default): randomises the full schedule using
+    actual scores — equivalent to "alternate universe" luck analysis.
+
+    When through_week is set: locks actual results for weeks 1..through_week,
+    then for remaining weeks draws each team's score from their observed scoring
+    distribution and simulates random matchups. This gives "playoff odds at
+    week N" without knowing what actually happened later.
 
     Args:
         matchups_df: Matchups DataFrame.
         season: Season to simulate.
-        n_sims: Number of Monte Carlo iterations (default 1000).
+        n_sims: Number of Monte Carlo iterations.
         league_id: Filter to league, or None.
+        through_week: If set, only commit results through this week and
+            simulate the rest. Use None for full-season analysis.
 
     Returns:
         DataFrame with columns: owner, actual_wins, mean_simulated_wins,
@@ -211,30 +218,51 @@ def monte_carlo_standings(
     if n_teams < 2:
         return empty
 
-    weeks = sorted({w for s in scores.values() for w in s})
+    all_weeks = sorted({w for s in scores.values() for w in s})
     playoff_cutoff = _infer_playoff_cutoff(matchups_df, season)
     rng = np.random.default_rng()
 
-    # Actual wins
+    # Split into locked (past) and open (future to simulate) weeks
+    if through_week is not None:
+        locked_weeks = [w for w in all_weeks if w <= through_week]
+        future_weeks = [w for w in all_weeks if w > through_week]
+    else:
+        locked_weeks = []
+        future_weeks = all_weeks
+
+    # Actual wins through locked weeks (from real matchup pairings)
     weekly_pairs = _weekly_matchups(df)
     actual_wins: dict[str, int] = {o: 0 for o in owners}
+    locked_wins: dict[str, int] = {o: 0 for o in owners}
     for week, pairs in weekly_pairs.items():
         for oa, ob in pairs:
             sa = scores.get(oa, {}).get(week, 0.0)
             sb = scores.get(ob, {}).get(week, 0.0)
             if sa > sb:
                 actual_wins[oa] = actual_wins.get(oa, 0) + 1
+                if week in locked_weeks:
+                    locked_wins[oa] = locked_wins.get(oa, 0) + 1
             elif sb > sa:
                 actual_wins[ob] = actual_wins.get(ob, 0) + 1
+                if week in locked_weeks:
+                    locked_wins[ob] = locked_wins.get(ob, 0) + 1
+
+    # Build per-team score distributions for future-week sampling
+    # Use all available scores (not just locked) as the distribution basis
+    score_arrays: dict[str, np.ndarray] = {}
+    for o in owners:
+        vals = [v for v in scores.get(o, {}).values() if v > 0]
+        score_arrays[o] = np.array(vals, dtype=float) if vals else np.array([100.0])
 
     sim_win_counts: dict[str, list[int]] = {o: [] for o in owners}
     sim_playoff_counts: dict[str, int] = {o: 0 for o in owners}
 
     for _ in range(n_sims):
-        sim_wins: dict[str, int] = {o: 0 for o in owners}
-        for week in weeks:
-            week_scores = [(o, scores.get(o, {}).get(week, 0.0)) for o in owners]
-            # Randomly pair teams for this week
+        sim_wins: dict[str, int] = {o: locked_wins[o] for o in owners}
+
+        # Simulate future weeks: sample scores + random pairings
+        for week in future_weeks:
+            week_scores = [(o, float(rng.choice(score_arrays[o]))) for o in owners]
             shuffled = rng.permutation(len(owners))
             for i in range(0, len(shuffled) - 1, 2):
                 ia, ib = int(shuffled[i]), int(shuffled[i + 1])
@@ -245,10 +273,23 @@ def monte_carlo_standings(
                 elif sb > sa:
                     sim_wins[ob] += 1
 
+        # For full-season alternate-universe mode, also randomise locked weeks
+        if through_week is None:
+            for week in all_weeks:
+                week_scores = [(o, scores.get(o, {}).get(week, 0.0)) for o in owners]
+                shuffled = rng.permutation(len(owners))
+                for i in range(0, len(shuffled) - 1, 2):
+                    ia, ib = int(shuffled[i]), int(shuffled[i + 1])
+                    oa, sa = week_scores[ia]
+                    ob, sb = week_scores[ib]
+                    if sa > sb:
+                        sim_wins[oa] += 1
+                    elif sb > sa:
+                        sim_wins[ob] += 1
+
         for o in owners:
             sim_win_counts[o].append(sim_wins[o])
 
-        # Count playoff qualifiers (top N by wins)
         sorted_owners = sorted(owners, key=lambda o: sim_wins[o], reverse=True)
         for o in sorted_owners[:playoff_cutoff]:
             sim_playoff_counts[o] += 1

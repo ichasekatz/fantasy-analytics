@@ -163,15 +163,42 @@ def _render_historical(matchups_df: pd.DataFrame, seasons: list, lid: str | None
 
 def _render_simulation(matchups_df: pd.DataFrame, seasons: list, lid: str | None) -> None:
     st.subheader("Monte Carlo Playoff Probability")
-    st.caption("Simulates 1,000 alternate schedules. P(playoffs) = fraction where you'd rank in top-N by wins.")
 
     sel = st.selectbox("Season", [str(s) for s in seasons], key="po_sim_season")
     season = int(sel)
 
-    n_sims = st.slider("Simulations", 200, 2000, 500, step=100, key="po_n_sims")
+    # Determine available regular-season weeks for this season
+    reg = matchups_df[
+        (matchups_df["season"] == season) &
+        ~matchups_df["is_playoff"].fillna(False) &
+        ~matchups_df["is_consolation"].fillna(False) &
+        ~matchups_df["is_championship"].fillna(False)
+    ]
+    if lid:
+        reg = reg[reg["league_id"] == lid]
+    all_reg_weeks = sorted(reg["week"].dropna().unique().astype(int))
+    max_week = max(all_reg_weeks) if all_reg_weeks else 14
 
-    with st.spinner(f"Running {n_sims} schedule simulations…"):
-        mc = monte_carlo_standings(matchups_df, season, n_sims=n_sims, league_id=lid)
+    col_w, col_s = st.columns([2, 1])
+    with col_w:
+        through_week = st.slider(
+            "Predict as of end of week", 1, max_week, max_week,
+            key="po_through_week",
+            help="Lock results through this week, simulate the rest. At max week = full alternate-schedule analysis.",
+        )
+    with col_s:
+        n_sims = st.slider("Simulations", 200, 2000, 500, step=100, key="po_n_sims")
+
+    if through_week < max_week:
+        st.caption(f"Weeks 1–{through_week}: actual results locked. Weeks {through_week+1}–{max_week}: simulated from each team's scoring distribution.")
+    else:
+        st.caption("Full season: alternate-schedule luck analysis (actual scores, random pairings).")
+
+    with st.spinner(f"Running {n_sims} simulations…"):
+        mc = monte_carlo_standings(
+            matchups_df, season, n_sims=n_sims, league_id=lid,
+            through_week=through_week if through_week < max_week else None,
+        )
 
     if mc.empty:
         st.info("Not enough data for this season.")
