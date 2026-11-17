@@ -122,6 +122,21 @@ with st.sidebar:
         help="Filter all pages to a specific league, or view across all leagues.",
     )
     st.session_state["selected_league_id"] = league_options[selected_league_label]
+
+    # Format filter — only relevant when viewing All Leagues
+    if league_options[selected_league_label] is None:
+        fmt_label = st.radio(
+            "Format",
+            ["Redraft Only", "Dynasty Only", "All Formats"],
+            index=0,
+            horizontal=True,
+            help="foxs-pizza-den-dynasty is the dynasty league.",
+        )
+        fmt_map = {"Redraft Only": "redraft_only", "Dynasty Only": "dynasty_only", "All Formats": "all"}
+        st.session_state["league_format"] = fmt_map[fmt_label]
+    else:
+        st.session_state["league_format"] = "all"
+
     st.divider()
 
     selected = st.radio("Navigate", list(pages.keys()), label_visibility="collapsed")

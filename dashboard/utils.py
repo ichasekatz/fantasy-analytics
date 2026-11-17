@@ -112,6 +112,13 @@ def apply_league_filter(df: pd.DataFrame) -> pd.DataFrame:
         if primary_ids:
             df = df[df["league_id"].isin(primary_ids)].copy()
 
+        # Apply format filter (redraft_only / dynasty_only / all)
+        fmt: str = st.session_state.get("league_format", "redraft_only")
+        if fmt == "redraft_only":
+            df = df[~df["league_id"].apply(is_dynasty_league)].copy()
+        elif fmt == "dynasty_only":
+            df = df[df["league_id"].apply(is_dynasty_league)].copy()
+
     # Player exclusions (session-only, always applied)
     excluded: list[str] = st.session_state.get("excluded_players", [])
     if excluded and "player" in df.columns:

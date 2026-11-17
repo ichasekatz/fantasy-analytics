@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
 
 from fantasy.analytics.standings import career_standings, season_standings
 from style import inject_css
-from utils import apply_league_filter, filter_redraft, is_dynasty_league, style_dataframe
+from utils import apply_league_filter, is_dynasty_league, style_dataframe
 
 _POS_COLORS = {
     "QB": "#E53E3E",
@@ -34,9 +34,11 @@ def render(conn) -> None:
     matchups_df = apply_league_filter(conn.execute("SELECT * FROM matchups").df())
     draft_df = apply_league_filter(conn.execute("SELECT * FROM draft_picks ORDER BY season, overall").df())
 
-    # Split redraft vs dynasty when viewing All Leagues
-    if lid is None and "league_id" in matchups_df.columns:
-        redraft_df = filter_redraft(matchups_df)
+    # apply_league_filter already applies the format (redraft_only/dynasty_only/all).
+    # When format is "all", split further for separate sections.
+    fmt = st.session_state.get("league_format", "redraft_only")
+    if lid is None and fmt == "all" and "league_id" in matchups_df.columns:
+        redraft_df = matchups_df[~matchups_df["league_id"].apply(is_dynasty_league)].copy()
         dynasty_df = matchups_df[matchups_df["league_id"].apply(is_dynasty_league)].copy()
     else:
         redraft_df = matchups_df

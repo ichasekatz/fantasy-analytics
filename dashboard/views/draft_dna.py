@@ -111,18 +111,43 @@ def _render_position_tendencies(draft_df: pd.DataFrame) -> None:
     st.plotly_chart(fig, use_container_width=True)
 
     if sel_owner == "All Managers":
-        st.subheader("Round 1 Position Distribution by Manager")
-        r1 = draft_df[draft_df["round"] == 1].copy()
-        if not r1.empty:
-            r1_pivot = (
-                r1.groupby(["owner_name", "position"])
+        max_round = int(draft_df["round"].max()) if not draft_df.empty else 15
+        round_opts = ["Average (all rounds)"] + [f"Round {r}" for r in range(1, max_round + 1)]
+        sel_round = st.selectbox("Round View", round_opts, key="dna_round_sel")
+
+        if sel_round == "Average (all rounds)":
+            st.subheader("Position Distribution by Manager (Avg per Draft)")
+            # Average picks per position per manager across all seasons
+            pos_pivot = (
+                draft_df.groupby(["owner_name", "season", "position"])
                 .size()
                 .reset_index(name="picks")
-                .pivot(index="owner_name", columns="position", values="picks")
+                .groupby(["owner_name", "position"])["picks"]
+                .mean()
+                .reset_index(name="avg_picks")
+                .pivot(index="owner_name", columns="position", values="avg_picks")
                 .fillna(0)
+                .round(1)
                 .reset_index()
             )
-            st.dataframe(r1_pivot, use_container_width=True, hide_index=True)
+            st.dataframe(pos_pivot, use_container_width=True, hide_index=True)
+        else:
+            rnd = int(sel_round.split()[-1])
+            st.subheader(f"Round {rnd} Position Distribution by Manager")
+            rnd_df = draft_df[draft_df["round"] == rnd].copy()
+            if not rnd_df.empty:
+                rnd_pivot = (
+                    rnd_df.groupby(["owner_name", "position"])
+                    .size()
+                    .reset_index(name="picks")
+                    .pivot(index="owner_name", columns="position", values="picks")
+                    .fillna(0)
+                    .astype(int)
+                    .reset_index()
+                )
+                st.dataframe(rnd_pivot, use_container_width=True, hide_index=True)
+            else:
+                st.info(f"No picks found in round {rnd}.")
 
 
 def _render_draft_grades(

@@ -11,7 +11,7 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
 
-from utils import apply_league_filter, filter_redraft, is_dynasty_league, style_dataframe
+from utils import apply_league_filter, style_dataframe
 
 
 def render(conn) -> None:
@@ -22,16 +22,9 @@ def render(conn) -> None:
     """
     st.title("🏠 League Overview")
 
-    lid = st.session_state.get("selected_league_id")
-
     seasons_df = apply_league_filter(conn.execute("SELECT * FROM seasons ORDER BY season").df())
     seasons_df = seasons_df.drop_duplicates(subset=["season"])
     matchups_df = apply_league_filter(conn.execute("SELECT * FROM matchups").df())
-
-    # Exclude dynasty leagues when viewing All Leagues
-    if lid is None:
-        seasons_df = filter_redraft(seasons_df)
-        matchups_df = filter_redraft(matchups_df)
 
     # Champions
     st.subheader("🏆 Champions")
@@ -48,9 +41,6 @@ def render(conn) -> None:
         WHERE is_championship = TRUE
         ORDER BY season
     """).df())
-    if lid is None and "league_id" in champs.columns:
-        champs = champs[~champs["league_id"].apply(is_dynasty_league)]
-
     if not champs.empty:
         styled_champs = style_dataframe(champs, higher_is_better=["champion_pts", "margin"], lower_is_better=["runner_up_pts"])
         st.dataframe(styled_champs, use_container_width=True, hide_index=True)
