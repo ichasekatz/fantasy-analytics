@@ -75,6 +75,7 @@ pages = {
     "📊 Standings": "standings",
     # --- Managers ---
     "👤 Managers": "managers",
+    "🏈 Player Stats": "player_stats",
     "📐 Manager Comparison": "comparison",
     "⚔️ Head-to-Head": "headtohead",
     "🔥 Rivalries": "rivalries",

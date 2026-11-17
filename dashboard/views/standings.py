@@ -186,19 +186,29 @@ def render(conn) -> None:
                 st.info("No regular-season data available.")
             else:
                 standings.insert(0, "Rank", range(1, len(standings) + 1))
-                display_cols = ["Rank", "owner", "team", "total_wins", "total_losses", "h2h_ties", "total_win_pct", "points_for", "points_against", "avg_pf"]
+                has_median = "median_wins" in standings.columns and standings["median_wins"].sum() > 0
+                display_cols = ["Rank", "owner", "team", "h2h_wins", "h2h_losses", "h2h_ties", "h2h_win_pct", "points_for", "points_against", "avg_pf"]
                 rename = {
                     "owner": "Owner", "team": "Team",
-                    "total_wins": "W", "total_losses": "L", "h2h_ties": "T",
-                    "total_win_pct": "Win%", "points_for": "PF", "points_against": "PA", "avg_pf": "Avg PF",
+                    "h2h_wins": "W", "h2h_losses": "L", "h2h_ties": "T",
+                    "h2h_win_pct": "Win%", "points_for": "PF", "points_against": "PA", "avg_pf": "Avg PF",
                 }
+                if has_median:
+                    display_cols += ["median_wins", "median_losses"]
+                    rename["median_wins"] = "Med W"
+                    rename["median_losses"] = "Med L"
+                display_cols = [c for c in display_cols if c in standings.columns]
                 out = standings[display_cols].rename(columns=rename)
                 out["Win%"] = out["Win%"].apply(lambda x: f"{x:.3f}" if x == x else "—")
                 out["PF"] = out["PF"].round(2)
                 out["PA"] = out["PA"].round(2)
                 out["Avg PF"] = out["Avg PF"].round(1)
-                styled = style_dataframe(out, higher_is_better=["W", "PF", "Avg PF"], lower_is_better=["L"])
+                hib = ["W", "Win%", "PF", "Avg PF"] + (["Med W"] if has_median else [])
+                lib = ["L"] + (["Med L"] if has_median else [])
+                styled = style_dataframe(out, higher_is_better=hib, lower_is_better=lib)
                 st.dataframe(styled, use_container_width=True, hide_index=True)
+                if has_median:
+                    st.caption("W/L = head-to-head. Med W/L = median matchup games.")
 
     with tab2:
         if all_time:

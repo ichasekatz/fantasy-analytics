@@ -115,24 +115,33 @@ def render(conn) -> None:
         if owner_row.empty:
             continue
         r = owner_row.iloc[0]
+        has_median = int(r.get("median_wins", 0)) > 0 or int(r.get("median_losses", 0)) > 0
         entry: dict = {
             "Season": int(season),
             "Team": r["team"],
-            "W": int(r["total_wins"]),
-            "L": int(r["total_losses"]),
-            "Win%": f"{r['total_win_pct']:.3f}",
+            "W": int(r["h2h_wins"]),
+            "L": int(r["h2h_losses"]),
+            "Win%": f"{r['h2h_win_pct']:.3f}",
             "PF": round(r["points_for"], 2),
             "PA": round(r["points_against"], 2),
             "Finish": int(s.index[s["owner"] == selected_manager][0]) + 1,
         }
+        if has_median:
+            entry["Med W"] = int(r["median_wins"])
+            entry["Med L"] = int(r.get("median_losses", 0))
         if "league_id" in filtered_df.columns and league_id is None:
             entry["League"] = filtered_df[filtered_df["season"] == season]["league_id"].iloc[0]
         rows.append(entry)
 
     if rows:
         rows_df = pd.DataFrame(rows)
-        styled = style_dataframe(rows_df, higher_is_better=["W", "PF"], lower_is_better=["L", "Finish"])
+        has_any_median = "Med W" in rows_df.columns
+        hib = ["W", "PF"] + (["Med W"] if has_any_median else [])
+        lib = ["L", "Finish"] + (["Med L"] if has_any_median else [])
+        styled = style_dataframe(rows_df, higher_is_better=hib, lower_is_better=lib)
         st.dataframe(styled, use_container_width=True, hide_index=True)
+        if has_any_median:
+            st.caption("W/L = head-to-head only. Med W/L = median matchup wins (2024+).")
     st.divider()
 
     # Weekly scoring distribution
