@@ -304,7 +304,8 @@ def _render_pick_value_map(
     st.subheader("Pick Value Map")
     st.caption("Actual VORP delivered vs. pick slot. Dots above the trend line = value picks. Below = busts.")
 
-    col_a, col_b = st.columns(2)
+    _map_rounds = sorted(draft_df["round"].dropna().unique().astype(int)) if "round" in draft_df.columns else []
+    col_a, col_b, col_c = st.columns(3)
     with col_a:
         sel_season = st.selectbox(
             "Season",
@@ -315,6 +316,8 @@ def _render_pick_value_map(
     with col_b:
         owners = sorted(draft_df["owner_name"].dropna().unique())
         sel_owner = st.selectbox("Manager", ["All Managers"] + list(owners), key="dna_map_owner")
+    with col_c:
+        sel_map_rd = st.selectbox("Round", ["All Rounds"] + [f"Round {r}" for r in _map_rounds], key="dna_map_rd")
 
     # Build dpv
     if sel_season == "All Time":
@@ -343,6 +346,9 @@ def _render_pick_value_map(
 
     if sel_owner != "All Managers":
         dpv = dpv[dpv["owner_name"] == sel_owner]
+
+    if sel_map_rd != "All Rounds" and "round" in dpv.columns:
+        dpv = dpv[dpv["round"] == int(sel_map_rd.split()[-1])]
 
     if dpv.empty:
         st.info("No picks found for this selection.")
