@@ -25,6 +25,7 @@ from utils import apply_league_filter
 
 def render(conn) -> None:
     st.title("🧬 Draft DNA")
+    st.caption("**VORP** (Value Over Replacement Player) = points scored above what an average player available at that pick slot would have scored. Positive = outperformed expectations; negative = underperformed.")
 
     draft_df = apply_league_filter(conn.execute("SELECT * FROM draft_picks ORDER BY season, overall").df())
     rosters_df = apply_league_filter(conn.execute("SELECT * FROM rosters").df())

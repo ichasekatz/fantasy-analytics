@@ -157,6 +157,7 @@ def _render_recap(
             if not my_grade.empty:
                 g = my_grade.iloc[0]
                 st.subheader("🎯 Draft Report Card")
+                st.caption("**VORP** = Value Over Replacement Player: points scored above an average player at that pick slot.")
                 dc1, dc2, dc3, dc4 = st.columns(4)
                 dc1.metric("Draft Rank", f"#{int(g.get('draft_rank', 0))} of {len(grades)}")
                 dc2.metric("Total VORP", f"{g.get('total_draft_vorp', 0):.1f}")
