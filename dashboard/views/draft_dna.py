@@ -412,9 +412,10 @@ def _render_pick_value_map(
 
 def _render_best_picks(draft_df: pd.DataFrame, rosters_df: pd.DataFrame, lid: str | None) -> None:
     st.subheader("Best Draft Picks in League History")
-    st.caption("Top 25 picks by VORP — the most valuable selections relative to replacement level.")
+    st.caption("Top picks by VORP — the most valuable selections relative to replacement level.")
 
-    best = best_picks_ever(draft_df, rosters_df, league_id=lid)
+    top_n = st.selectbox("Show top", [25, 50, 100], key="best_picks_n")
+    best = best_picks_ever(draft_df, rosters_df, league_id=lid, top_n=top_n)
 
     if best.empty:
         st.info("No data.")
@@ -434,9 +435,10 @@ def _render_best_picks(draft_df: pd.DataFrame, rosters_df: pd.DataFrame, lid: st
 
 def _render_worst_picks(draft_df: pd.DataFrame, rosters_df: pd.DataFrame, lid: str | None) -> None:
     st.subheader("Worst Draft Picks in League History")
-    st.caption("Top 25 busts by VORP — the most disappointing selections. Keepers excluded.")
+    st.caption("Top busts by VORP — the most disappointing selections. Keepers excluded.")
 
-    worst = worst_picks_ever(draft_df, rosters_df, league_id=lid)
+    top_n = st.selectbox("Show top", [25, 50, 100], key="worst_picks_n")
+    worst = worst_picks_ever(draft_df, rosters_df, league_id=lid, top_n=top_n)
 
     if worst.empty:
         st.info("No data.")
