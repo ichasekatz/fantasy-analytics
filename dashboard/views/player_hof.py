@@ -105,11 +105,19 @@ def _render_by_season(rosters_df, draft_df) -> None:
     st.dataframe(styled_season, use_container_width=True, hide_index=True)
 
 
+_HOF_CAT_EXCL = {"K", "DST", "DEF", "D_ST", "D/ST"}
+
+
+def _hof_exclude_pos(p: object) -> bool:
+    if not p or str(p) == "nan":
+        return False
+    tokens = {t.strip() for t in str(p).split(",")}
+    return bool(tokens & _HOF_CAT_EXCL) or is_defensive_position(str(p))
+
+
 def _render_categories(career) -> None:
     if st.checkbox("Exclude defensive players (IDP)", value=False, key="phof_cat_excl_def"):
-        career = career[~career["position"].apply(
-            lambda p: is_defensive_position(str(p)) if p and str(p) != "nan" else False
-        )]
+        career = career[~career["position"].apply(_hof_exclude_pos)]
 
     st.subheader("Most Consistently Drafted")
     most_drafted = career[career["times_drafted"] > 0].sort_values("times_drafted", ascending=False).head(20)
@@ -119,7 +127,7 @@ def _render_categories(career) -> None:
 
     st.divider()
     st.subheader("One-Season Wonders")
-    wonders = career[(career["total_seasons"] == 1) & (career["total_started_points"] > 100)].sort_values("total_started_points", ascending=False).head(20)
+    wonders = career[(career["total_seasons"] == 1) & (career["total_started_points"] > 40)].sort_values("total_started_points", ascending=False).head(20)
     _show_category(wonders, ["player", "position", "total_started_points", "best_owner"],
                    {"player": "Player", "position": "Pos", "total_started_points": "Started Pts", "best_owner": "Owner"},
                    higher_is_better=["Started Pts"])
