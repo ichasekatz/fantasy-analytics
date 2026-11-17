@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).parents[1]))
 sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
 
 from fantasy.analytics.standings import season_standings
-from utils import apply_league_filter, filter_offensive_rosters, rebuild_matchups_offensive, season_has_idp
+from utils import apply_league_filter, filter_offensive_rosters, season_has_idp
 
 _known_seasons = [2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026]
 
@@ -68,8 +68,8 @@ def render(conn) -> None:
     st.caption(f"Platform: {provider.upper()}")
     st.divider()
 
-    # --- IDP: rebuild matchup scores from offensive-only rosters when needed ---
-    season_matchups_idp = rebuild_matchups_offensive(season_matchups, season_roster)
+    # season_matchups already has IDP scores rebuilt via apply_league_filter
+    season_matchups_idp = season_matchups
 
     # --- Section 2: Final Standings ---
     st.subheader("Final Standings")

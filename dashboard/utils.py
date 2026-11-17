@@ -144,11 +144,34 @@ def apply_league_filter(df: pd.DataFrame) -> pd.DataFrame:
         yr_min, yr_max = season_range
         df = df[(df["season"] >= yr_min) & (df["season"] <= yr_max)].copy()
 
-    # IDP exclusion: remove rows whose position is purely defensive
-    if st.session_state.get("exclude_defensive", False) and "position" in df.columns:
-        df = df[~df["position"].apply(
-            lambda p: is_defensive_position(str(p)) if pd.notna(p) else False
-        )].copy()
+    # IDP exclusion
+    if st.session_state.get("exclude_defensive", False):
+        # Rosters/player tables: strip defensive rows
+        if "position" in df.columns and "points_a" not in df.columns:
+            df = df[~df["position"].apply(
+                lambda p: is_defensive_position(str(p)) if pd.notna(p) else False
+            )].copy()
+
+        # Matchups tables: rebuild points_a/points_b/winner from cached offensive scores
+        if "points_a" in df.columns and "points_b" in df.columns and "winner_team_id" in df.columns:
+            off_scores: dict = st.session_state.get("_off_weekly_scores", {})
+            if off_scores:
+                df = df.copy()
+                df["_wk"] = pd.to_numeric(df.get("week", pd.Series()), errors="coerce").fillna(0).astype(int)
+                df["_sea"] = pd.to_numeric(df.get("season", pd.Series()), errors="coerce").fillna(0).astype(int)
+                df["points_a"] = df.apply(
+                    lambda r: off_scores.get((r["_sea"], r["_wk"], r["team_a_owner"]), r["points_a"]), axis=1
+                )
+                df["points_b"] = df.apply(
+                    lambda r: off_scores.get((r["_sea"], r["_wk"], r["team_b_owner"]), r["points_b"]), axis=1
+                )
+                df["winner_team_id"] = df.apply(
+                    lambda r: r["team_a_id"]
+                    if pd.notna(r["points_a"]) and pd.notna(r["points_b"]) and r["points_a"] >= r["points_b"]
+                    else r["team_b_id"],
+                    axis=1,
+                )
+                df = df.drop(columns=["_wk", "_sea"])
 
     # Player exclusions (session-only, always applied)
     excluded: list[str] = st.session_state.get("excluded_players", [])
