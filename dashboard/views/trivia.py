@@ -123,7 +123,8 @@ def _generate_questions(matchups_df: pd.DataFrame, rosters_df: pd.DataFrame, dra
         if champs["margin"].isna().all():
             closest = None
         else:
-            if closest is not None:
+            closest = champs.loc[champs["margin"].idxmin()]
+        if closest is not None:
             closest_season = int(closest["season"])
             wrong_seasons = [s for s in seasons if s != closest_season][:3]
             opts_s = [str(s) for s in wrong_seasons] + [str(closest_season)]
