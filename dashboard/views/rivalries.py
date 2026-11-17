@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).parents[1]))
 sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
 
 from fantasy.analytics.rivalries import all_rivalries, rivalry_stats, rivalry_timeline
-from utils import apply_league_filter
+from utils import apply_league_filter, style_dataframe
 
 
 def render(conn) -> None:
@@ -73,7 +73,8 @@ def _render_top_rivalries(matchups_df: pd.DataFrame) -> None:
             "total_games": "Games",
         }
     )
-    st.dataframe(out, use_container_width=True, hide_index=True)
+    styled_out = style_dataframe(out, higher_is_better=["Games", "Intensity"], lower_is_better=["Avg Margin"])
+    st.dataframe(styled_out, use_container_width=True, hide_index=True)
 
     # Bar chart of top 10
     top10 = display.head(10).copy()
@@ -148,7 +149,8 @@ def _render_spotlight(matchups_df: pd.DataFrame, all_owners: list[str]) -> None:
         champ_df = champ_df[["season", "pts_a", "pts_b", "winner", "margin"]].rename(
             columns={"pts_a": f"{owner_a} Pts", "pts_b": f"{owner_b} Pts"}
         )
-        st.dataframe(champ_df, use_container_width=True, hide_index=True)
+        styled_champ = style_dataframe(champ_df, higher_is_better=["margin"], lower_is_better=[])
+        st.dataframe(styled_champ, use_container_width=True, hide_index=True)
 
     # Timeline chart
     tl = rivalry_timeline(matchups_df, owner_a, owner_b)
@@ -194,7 +196,7 @@ def _render_spotlight(matchups_df: pd.DataFrame, all_owners: list[str]) -> None:
             po_disp = playoff_rows[["season", "week", "pts_a", "pts_b", "winner", "margin"]].rename(
                 columns={"pts_a": f"{owner_a}", "pts_b": f"{owner_b}"}
             )
-            st.dataframe(po_disp, use_container_width=True, hide_index=True)
+            st.dataframe(style_dataframe(po_disp, higher_is_better=["margin"]), use_container_width=True, hide_index=True)
 
 
 def _render_matrix(matchups_df: pd.DataFrame, all_owners: list[str]) -> None:
