@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
 
 from fantasy.analytics.player_ownership import player_career_stats, player_ownership_history
 from style import inject_css
-from utils import apply_league_filter
+from utils import apply_league_filter, style_dataframe
 
 _POS_COLORS = {"QB": "#E53E3E", "RB": "#38A169", "WR": "#3182CE", "TE": "#D69E2E", "K": "#718096", "DST": "#805AD5"}
 
@@ -60,7 +60,8 @@ def _render_all_time(career) -> None:
         "player": "Player", "position": "Pos", "total_started_points": "Started Pts",
         "total_managers": "Managers", "total_seasons": "Seasons", "best_owner": "Best Owner",
     })
-    st.dataframe(display, use_container_width=True, hide_index=True)
+    styled_hof = style_dataframe(display, higher_is_better=["Started Pts", "Managers", "Seasons"], lower_is_better=["Rank"])
+    st.dataframe(styled_hof, use_container_width=True, hide_index=True)
 
     top15 = career.head(15).copy()
     top15["color"] = top15["position"].map(_POS_COLORS).fillna("#718096")
@@ -100,7 +101,8 @@ def _render_by_season(rosters_df, draft_df) -> None:
         "player": "Player", "position": "Pos", "total_started_points": "Started Pts",
         "total_roster_points": "Roster Pts", "best_owner": "Owner",
     })
-    st.dataframe(display, use_container_width=True, hide_index=True)
+    styled_season = style_dataframe(display, higher_is_better=["Started Pts", "Roster Pts"], lower_is_better=["Rank"])
+    st.dataframe(styled_season, use_container_width=True, hide_index=True)
 
 
 def _render_categories(career) -> None:

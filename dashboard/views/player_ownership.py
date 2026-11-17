@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
 
 from fantasy.analytics.player_ownership import player_career_stats, player_ownership_history
 from style import inject_css
-from utils import apply_league_filter
+from utils import apply_league_filter, style_dataframe
 
 
 def render(conn) -> None:
@@ -97,7 +97,8 @@ def _show_career_table(df: pd.DataFrame) -> None:
         "player": "Player", "position": "Pos", "total_started_points": "Started Pts",
         "total_managers": "Managers", "total_seasons": "Seasons", "best_owner": "Best Owner",
     })
-    st.dataframe(display, use_container_width=True, hide_index=True)
+    styled = style_dataframe(display, higher_is_better=["Started Pts", "Managers", "Seasons"], lower_is_better=["Rank"])
+    st.dataframe(styled, use_container_width=True, hide_index=True)
 
 
 def _render_repeat_owners(draft_df: pd.DataFrame) -> None:

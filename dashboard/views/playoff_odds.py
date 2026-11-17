@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
 
 from fantasy.analytics.simulations import _infer_playoff_cutoff, monte_carlo_standings
 from style import inject_css
-from utils import apply_league_filter
+from utils import apply_league_filter, style_dataframe
 
 
 def _all_play_pct(matchups_df: pd.DataFrame, season: int, league_id: str | None) -> pd.DataFrame:
@@ -128,7 +128,12 @@ def _render_historical(matchups_df: pd.DataFrame, seasons: list, lid: str | None
         "made_playoffs": "Made Playoffs",
         "deserved": "Deserved?",
     })
-    st.dataframe(display, use_container_width=True, hide_index=True)
+    display["All-Play %"] = display["All-Play %"].round(3)
+    styled_hist = style_dataframe(
+        display,
+        higher_is_better=["H2H Wins", "All-Play Wins", "All-Play %"],
+    )
+    st.dataframe(styled_hist, use_container_width=True, hide_index=True)
 
     if len(seasons_sel) == 1:
         season_int = int(seasons_sel[0])
@@ -227,7 +232,11 @@ def _render_simulation(matchups_df: pd.DataFrame, seasons: list, lid: str | None
         "verdict": "Verdict",
     })
     display["Avg Sim W"] = display["Avg Sim W"].round(1)
-    st.dataframe(display, use_container_width=True, hide_index=True)
+    styled_mc = style_dataframe(
+        display,
+        higher_is_better=["Actual W", "Avg Sim W", "P(Playoffs) %"],
+    )
+    st.dataframe(styled_mc, use_container_width=True, hide_index=True)
 
     fig = px.bar(
         mc.sort_values("playoff_probability", ascending=True),

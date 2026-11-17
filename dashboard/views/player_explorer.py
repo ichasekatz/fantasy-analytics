@@ -9,6 +9,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
+sys.path.insert(0, str(Path(__file__).parents[1]))
 sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
 
 from fantasy.analytics.players import (
@@ -24,6 +25,7 @@ from fantasy.identity.player_registry import (
     merge_player_names,
     save_player_registry,
 )
+from utils import style_dataframe
 
 _ext_seasonal = Path(__file__).parents[2] / "data" / "external" / "nfl_seasonal_stats.parquet"
 _registry_path = Path(__file__).parents[2] / "data" / "identity" / "player_aliases.json"
@@ -205,11 +207,17 @@ def render(conn) -> None:
             top_df.insert(0, "Rank", range(1, len(top_df) + 1))
             top_df["total_points"] = top_df["total_points"].round(1)
             top_df["avg_per_start"] = top_df["avg_per_start"].round(2)
-            st.dataframe(top_df.rename(columns={
+            top_renamed = top_df.rename(columns={
                 "player": "Player", "position": "Pos", "total_points": "Total Pts",
                 "starter_weeks": "Starts", "avg_per_start": "Avg/Start",
                 "leagues_played": "Leagues", "seasons_played": "Seasons",
-            }), use_container_width=True, hide_index=True)
+            })
+            styled_top = style_dataframe(
+                top_renamed,
+                higher_is_better=["Total Pts", "Starts", "Avg/Start", "Leagues", "Seasons"],
+                lower_is_better=["Rank"],
+            )
+            st.dataframe(styled_top, use_container_width=True, hide_index=True)
 
             fig = px.bar(
                 top_df.head(20),

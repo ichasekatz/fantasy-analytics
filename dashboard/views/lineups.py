@@ -12,7 +12,7 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).parents[1]))
 sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
 
-from utils import apply_league_filter
+from utils import apply_league_filter, style_dataframe
 
 try:
     from fantasy.analytics.lineups import bench_strength, lineup_decision_quality, lineup_efficiency, lineup_efficiency_summary
@@ -100,7 +100,12 @@ def render(conn) -> None:
                 "worst_week_left": "Worst Wk",
                 "best_week_left": "Best Wk",
             })
-            st.dataframe(display, use_container_width=True, hide_index=True)
+            styled_lineup = style_dataframe(
+                display,
+                higher_is_better=["Avg Efficiency (%)"],
+                lower_is_better=["Avg Pts Left/Wk", "Total Pts Left"],
+            )
+            st.dataframe(styled_lineup, use_container_width=True, hide_index=True)
 
             # Bar chart
             fig = px.bar(
@@ -157,7 +162,8 @@ def render(conn) -> None:
                 "avg_starter": "Avg Starter Pts",
                 "bench_ratio": "Bench/Starter Ratio",
             })
-            st.dataframe(bench_display, use_container_width=True, hide_index=True)
+            styled_bench = style_dataframe(bench_display, higher_is_better=["Avg Bench Pts", "Avg Starter Pts", "Bench/Starter Ratio"])
+            st.dataframe(styled_bench, use_container_width=True, hide_index=True)
 
     with tab4:
         st.subheader("🎯 Lineup Decision Quality")

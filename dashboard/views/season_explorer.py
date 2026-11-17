@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).parents[1]))
 sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
 
 from fantasy.analytics.standings import season_standings
-from utils import apply_league_filter, filter_offensive_rosters, season_has_idp
+from utils import apply_league_filter, filter_offensive_rosters, season_has_idp, style_dataframe
 
 _known_seasons = [2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026]
 
@@ -78,16 +78,21 @@ def render(conn) -> None:
         st.info("No standings data available.")
     else:
         standings.insert(0, "Rank", range(1, len(standings) + 1))
-        display_cols = ["Rank", "owner", "total_wins", "total_losses", "h2h_ties", "total_win_pct", "points_for", "points_against"]
+        has_ties = "h2h_ties" in standings.columns and standings["h2h_ties"].sum() > 0
+        display_cols = ["Rank", "owner", "total_wins", "total_losses"]
+        if has_ties:
+            display_cols.append("h2h_ties")
+        display_cols += ["total_win_pct", "points_for", "points_against"]
         rename = {
             "owner": "Owner", "total_wins": "W", "total_losses": "L", "h2h_ties": "T",
             "total_win_pct": "Win%", "points_for": "PF", "points_against": "PA",
         }
-        out = standings[display_cols].rename(columns=rename)
-        out["Win%"] = out["Win%"].apply(lambda x: f"{x:.3f}" if pd.notna(x) else "—")
+        out = standings[[c for c in display_cols if c in standings.columns]].rename(columns=rename)
+        out["Win%"] = out["Win%"].round(3)
         out["PF"] = out["PF"].round(2)
         out["PA"] = out["PA"].round(2)
-        st.dataframe(out, use_container_width=True, hide_index=True)
+        styled_st = style_dataframe(out, higher_is_better=["W", "Win%", "PF"], lower_is_better=["L", "PA"])
+        st.dataframe(styled_st, use_container_width=True, hide_index=True)
     st.divider()
 
     # --- Section 3: Weekly Scores Heatmap ---

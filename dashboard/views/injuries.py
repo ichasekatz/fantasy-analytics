@@ -12,7 +12,9 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).parents[1]))
 sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
 
-from utils import apply_league_filter
+from utils import apply_league_filter, style_dataframe
+
+_DEF_POSITIONS = {"DL", "LB", "DB", "DE", "DT", "CB", "S", "SS", "FS", "IDP"}
 
 _BUST_THRESHOLD = 0.40   # actual / projected < 40% = "bust" (projection mode)
 _MIN_PROJECTED = 8.0     # ignore low-projection players
@@ -202,6 +204,12 @@ def render(conn) -> None:
             f"Starters who scored ≤ {_DNP_THRESHOLD} pts — likely DNP, IR, or inactive. "
             "(No projection data in export; using 0-point threshold instead.)"
         )
+
+    has_idp_positions = "position" in rosters_df.columns and rosters_df["position"].isin(_DEF_POSITIONS).any()
+    if has_idp_positions:
+        exclude_idp_inj = st.checkbox("Exclude defensive players (IDP)", value=False, key="inj_exclude_idp")
+        if exclude_idp_inj:
+            rosters_df = rosters_df[~rosters_df["position"].isin(_DEF_POSITIONS)]
 
     busts = _bust_events(rosters_df)
 

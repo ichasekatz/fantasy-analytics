@@ -87,16 +87,53 @@ def render(conn) -> None:
         if career.empty:
             st.info("No career data available.")
         else:
+            # Compute career avg PF/PA rank (12-team normalized)
+            _career_rank_rows = []
+            for _s in sorted(matchups_df["season"].dropna().unique()):
+                _sdf = season_standings(matchups_df, int(_s), lid)
+                if _sdf.empty:
+                    continue
+                _sn = len(_sdf)
+                if _sn < 2:
+                    continue
+                _pf_r2 = _sdf["points_for"].rank(ascending=False, method="min")
+                _pa_r2 = _sdf["points_against"].rank(ascending=True, method="min")
+                for _i, _row in _sdf.iterrows():
+                    _career_rank_rows.append({
+                        "owner": _row["owner"],
+                        "pf_rank_12": 1 + (_pf_r2.loc[_i] - 1) / (_sn - 1) * 11,
+                        "pa_rank_12": 1 + (_pa_r2.loc[_i] - 1) / (_sn - 1) * 11,
+                    })
+            if _career_rank_rows:
+                _cr_df = pd.DataFrame(_career_rank_rows).groupby("owner").agg(
+                    pf_rank_12=("pf_rank_12", "mean"), pa_rank_12=("pa_rank_12", "mean")
+                ).reset_index()
+                career = career.merge(_cr_df, on="owner", how="left")
+
             career.insert(0, "Rank", range(1, len(career) + 1))
-            display = career[["Rank", "owner", "h2h_wins", "h2h_losses", "h2h_win_pct", "points_for", "avg_pf", "seasons_played"]].rename(columns={
-                "owner": "Owner", "h2h_wins": "W", "h2h_losses": "L",
-                "h2h_win_pct": "Win%", "points_for": "Total PF",
-                "avg_pf": "Avg PF/Game", "seasons_played": "Seasons",
-            })
-            display["Win%"] = display["Win%"].apply(lambda x: f"{x:.3f}" if pd.notna(x) else "—")
-            display["Total PF"] = display["Total PF"].round(1)
-            display["Avg PF/Game"] = display["Avg PF/Game"].round(1)
-            st.dataframe(display, use_container_width=True, hide_index=True)
+            has_ties_at = "h2h_ties" in career.columns and career["h2h_ties"].sum() > 0
+            at_cols = ["Rank", "owner", "h2h_wins", "h2h_losses"]
+            if has_ties_at:
+                at_cols.append("h2h_ties")
+            at_cols += ["h2h_win_pct", "pf_rank_12", "pa_rank_12", "seasons_played"]
+            at_rename = {
+                "owner": "Owner", "h2h_wins": "W", "h2h_losses": "L", "h2h_ties": "T",
+                "h2h_win_pct": "Win%", "pf_rank_12": "Avg PF Rank",
+                "pa_rank_12": "Avg PA Rank", "seasons_played": "Seasons",
+            }
+            display = career[[c for c in at_cols if c in career.columns]].rename(columns=at_rename)
+            display["Win%"] = display["Win%"].round(3)
+            if "Avg PF Rank" in display.columns:
+                display["Avg PF Rank"] = display["Avg PF Rank"].round(1)
+            if "Avg PA Rank" in display.columns:
+                display["Avg PA Rank"] = display["Avg PA Rank"].round(1)
+            styled_at = style_dataframe(
+                display,
+                higher_is_better=["W", "Win%", "Seasons"],
+                lower_is_better=["L", "Avg PF Rank", "Avg PA Rank"],
+            )
+            st.dataframe(styled_at, use_container_width=True, hide_index=True)
+            st.caption("PF/PA Rank: 1 = best, 12 = worst, normalized to 12-team scale.")
 
             all_owners_career = sorted(career["owner"].dropna().unique())
             sel_owners_career = st.multiselect(
@@ -116,7 +153,7 @@ def render(conn) -> None:
         st.caption(
             "Average finish per season, normalized for field size. "
             "Avg Pct Rank: 1.0 = finished 1st every year, 0.0 = last every year. "
-            "Avg PF Rank: 1.0 = highest scorer every year. Avg PA Rank: lower value = fewer points against (better)."
+            "PF/PA Rank: 1 = best (top scorer / fewest points against), 12 = worst, normalized to 12-team scale."
         )
         rank_df = _avg_season_rank(matchups_df, lid)
         min_seasons_filter = st.session_state.get("min_seasons_played", 1)
@@ -125,6 +162,12 @@ def render(conn) -> None:
         if rank_df.empty:
             st.info("No data.")
         else:
+            # Convert pct_ranks to 12-team scale
+            if "avg_pf_pct_rank" in rank_df.columns:
+                rank_df["pf_rank_12"] = (1 + (1 - rank_df["avg_pf_pct_rank"]) * 11).round(1)
+            if "avg_pa_pct_rank" in rank_df.columns:
+                rank_df["pa_rank_12"] = (1 + rank_df["avg_pa_pct_rank"] * 11).round(1)
+
             rank_df.insert(0, "Rank", range(1, len(rank_df) + 1))
             cols_to_show = ["Rank", "owner", "avg_finish", "best_finish", "worst_finish",
                             "avg_pct_rank", "avg_win_pct"]
@@ -133,19 +176,18 @@ def render(conn) -> None:
                 "best_finish": "Best", "worst_finish": "Worst",
                 "avg_pct_rank": "Avg Pct Rank", "avg_win_pct": "Avg Win%",
                 "seasons": "Seasons", "season_list": "Seasons List",
+                "pf_rank_12": "Avg PF Rank", "pa_rank_12": "Avg PA Rank",
             }
-            if "avg_pf_pct_rank" in rank_df.columns:
-                cols_to_show.append("avg_pf_pct_rank")
-                rename_map["avg_pf_pct_rank"] = "Avg PF Rank"
-            if "avg_pa_pct_rank" in rank_df.columns:
-                cols_to_show.append("avg_pa_pct_rank")
-                rename_map["avg_pa_pct_rank"] = "Avg PA Rank"
+            if "pf_rank_12" in rank_df.columns:
+                cols_to_show.append("pf_rank_12")
+            if "pa_rank_12" in rank_df.columns:
+                cols_to_show.append("pa_rank_12")
             cols_to_show += ["seasons", "season_list"]
             out = rank_df[[c for c in cols_to_show if c in rank_df.columns]].rename(columns=rename_map)
             styled = style_dataframe(
                 out,
-                higher_is_better=["Avg Pct Rank", "Avg Win%", "Avg PF Rank", "Seasons"],
-                lower_is_better=["Avg Finish", "Best", "Worst", "Avg PA Rank"],
+                higher_is_better=["Avg Pct Rank", "Avg Win%", "Seasons"],
+                lower_is_better=["Avg Finish", "Best", "Worst", "Avg PF Rank", "Avg PA Rank"],
             )
             st.dataframe(styled, use_container_width=True, hide_index=True)
 

@@ -11,7 +11,7 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
 
-from utils import apply_league_filter, style_dataframe
+from utils import apply_league_filter, rebuild_matchups_offensive, style_dataframe
 
 
 def render(conn) -> None:
@@ -24,24 +24,30 @@ def render(conn) -> None:
 
     seasons_df = apply_league_filter(conn.execute("SELECT * FROM seasons ORDER BY season").df())
     seasons_df = seasons_df.drop_duplicates(subset=["season"])
+    rosters_df = apply_league_filter(conn.execute("SELECT * FROM rosters").df())
     matchups_df = apply_league_filter(conn.execute("SELECT * FROM matchups").df())
+    # Apply IDP adjustment so champion_pts reflect offensive-only scores when excluded
+    matchups_df = rebuild_matchups_offensive(matchups_df, rosters_df)
 
-    # Champions
+    # Champions — derived from (possibly IDP-adjusted) matchups_df
     st.subheader("🏆 Champions")
-    champs = apply_league_filter(conn.execute("""
-        SELECT league_id, season,
-               CASE WHEN winner_team_id = team_a_id THEN team_a_name ELSE team_b_name END AS champion,
-               CASE WHEN winner_team_id = team_a_id THEN team_a_owner ELSE team_b_owner END AS champion_owner,
-               CASE WHEN winner_team_id = team_a_id THEN team_b_name ELSE team_a_name END AS runner_up,
-               CASE WHEN winner_team_id = team_a_id THEN team_b_owner ELSE team_a_owner END AS runner_up_owner,
-               CASE WHEN winner_team_id = team_a_id THEN ROUND(points_a, 2) ELSE ROUND(points_b, 2) END AS champion_pts,
-               CASE WHEN winner_team_id = team_a_id THEN ROUND(points_b, 2) ELSE ROUND(points_a, 2) END AS runner_up_pts,
-               ABS(ROUND(points_a - points_b, 2)) AS margin
-        FROM matchups
-        WHERE is_championship = TRUE
-        ORDER BY season
-    """).df())
-    if not champs.empty:
+    champ_rows = matchups_df[matchups_df["is_championship"].fillna(False)].copy()
+    if not champ_rows.empty:
+        champ_rows["champion"] = champ_rows.apply(
+            lambda r: r["team_a_name"] if r["winner_team_id"] == r["team_a_id"] else r["team_b_name"], axis=1)
+        champ_rows["champion_owner"] = champ_rows.apply(
+            lambda r: r["team_a_owner"] if r["winner_team_id"] == r["team_a_id"] else r["team_b_owner"], axis=1)
+        champ_rows["runner_up"] = champ_rows.apply(
+            lambda r: r["team_b_name"] if r["winner_team_id"] == r["team_a_id"] else r["team_a_name"], axis=1)
+        champ_rows["runner_up_owner"] = champ_rows.apply(
+            lambda r: r["team_b_owner"] if r["winner_team_id"] == r["team_a_id"] else r["team_a_owner"], axis=1)
+        champ_rows["champion_pts"] = champ_rows.apply(
+            lambda r: round(float(r["points_a"]), 2) if r["winner_team_id"] == r["team_a_id"] else round(float(r["points_b"]), 2), axis=1)
+        champ_rows["runner_up_pts"] = champ_rows.apply(
+            lambda r: round(float(r["points_b"]), 2) if r["winner_team_id"] == r["team_a_id"] else round(float(r["points_a"]), 2), axis=1)
+        champ_rows["margin"] = (champ_rows["champion_pts"] - champ_rows["runner_up_pts"]).abs().round(2)
+        champs = champ_rows[["season", "champion", "champion_owner", "runner_up", "runner_up_owner",
+                              "champion_pts", "runner_up_pts", "margin"]].sort_values("season").reset_index(drop=True)
         styled_champs = style_dataframe(champs, higher_is_better=["champion_pts", "margin"], lower_is_better=["runner_up_pts"])
         st.dataframe(styled_champs, use_container_width=True, hide_index=True)
     else:
@@ -65,7 +71,12 @@ def render(conn) -> None:
         summary["median_score"] = summary["median_score"].round(1)
         summary["high_score"] = summary["high_score"].round(2)
         summary["low_score"] = summary["low_score"].round(2)
-        st.dataframe(summary, use_container_width=True, hide_index=True)
+        styled_summary = style_dataframe(
+            summary,
+            higher_is_better=["avg_score", "median_score", "high_score", "total_games", "num_teams"],
+            lower_is_better=["low_score"],
+        )
+        st.dataframe(styled_summary, use_container_width=True, hide_index=True)
 
         # Scoring trend chart
         st.subheader("📈 Average Score by Season")
