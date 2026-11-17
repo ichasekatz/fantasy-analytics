@@ -299,7 +299,7 @@ def render(conn) -> None:
                     "owner": "Owner", "ap_wins": "AP W", "ap_losses": "AP L",
                     "ap_win_pct": "AP Win%", "seasons_played": "Seasons",
                 })
-                styled_ap = style_dataframe(out_ap, higher_is_better=["AP W", "AP Win%", "Seasons"], lower_is_better=["AP L", "Rank"])
+                styled_ap = style_dataframe(out_ap, higher_is_better=["AP W", "AP Win%", "Seasons"], lower_is_better=["AP L"])
                 st.dataframe(styled_ap, use_container_width=True, hide_index=True)
                 st.caption("All-play win% across all seasons. Removes schedule luck.")
         else:
