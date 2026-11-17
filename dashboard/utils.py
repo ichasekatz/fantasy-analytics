@@ -152,26 +152,51 @@ def apply_league_filter(df: pd.DataFrame) -> pd.DataFrame:
                 lambda p: is_defensive_position(str(p)) if pd.notna(p) else False
             )].copy()
 
-        # Matchups tables: rebuild points_a/points_b/winner from cached offensive scores
+        # Matchups tables: rebuild points_a/points_b/winner using offensive-only rosters
         if "points_a" in df.columns and "points_b" in df.columns and "winner_team_id" in df.columns:
-            off_scores: dict = st.session_state.get("_off_weekly_scores", {})
-            if off_scores:
-                df = df.copy()
-                df["_wk"] = pd.to_numeric(df.get("week", pd.Series()), errors="coerce").fillna(0).astype(int)
-                df["_sea"] = pd.to_numeric(df.get("season", pd.Series()), errors="coerce").fillna(0).astype(int)
-                df["points_a"] = df.apply(
-                    lambda r: off_scores.get((r["_sea"], r["_wk"], r["team_a_owner"]), r["points_a"]), axis=1
-                )
-                df["points_b"] = df.apply(
-                    lambda r: off_scores.get((r["_sea"], r["_wk"], r["team_b_owner"]), r["points_b"]), axis=1
-                )
-                df["winner_team_id"] = df.apply(
-                    lambda r: r["team_a_id"]
-                    if pd.notna(r["points_a"]) and pd.notna(r["points_b"]) and r["points_a"] >= r["points_b"]
-                    else r["team_b_id"],
-                    axis=1,
-                )
-                df = df.drop(columns=["_wk", "_sea"])
+            conn = st.session_state.get("_conn")
+            if conn is not None:
+                try:
+                    lid = st.session_state.get("selected_league_id")
+                    lid_clause = f"AND league_id = '{lid}'" if lid else ""
+                    rdf = conn.execute(f"""
+                        SELECT season, week, owner_name, position, points
+                        FROM rosters
+                        WHERE starter = true {lid_clause}
+                    """).df()
+                    rdf = rdf[~rdf["position"].apply(
+                        lambda p: is_defensive_position(str(p)) if pd.notna(p) else False
+                    )]
+                    rdf["points"] = pd.to_numeric(rdf["points"], errors="coerce").fillna(0)
+                    rdf["week"] = pd.to_numeric(rdf["week"], errors="coerce")
+                    rdf["season"] = pd.to_numeric(rdf["season"], errors="coerce")
+                    rdf = rdf.dropna(subset=["week", "season"])
+                    rdf["season"] = rdf["season"].astype(int)
+                    rdf["week"] = rdf["week"].astype(int)
+                    weekly = rdf.groupby(["season", "week", "owner_name"])["points"].sum().reset_index()
+                    score_map = {
+                        (int(r["season"]), int(r["week"]), r["owner_name"]): r["points"]
+                        for _, r in weekly.iterrows()
+                    }
+                    if score_map:
+                        df = df.copy()
+                        df["_wk"] = pd.to_numeric(df["week"], errors="coerce").fillna(0).astype(int)
+                        df["_sea"] = pd.to_numeric(df["season"], errors="coerce").fillna(0).astype(int)
+                        df["points_a"] = df.apply(
+                            lambda r: score_map.get((r["_sea"], r["_wk"], r["team_a_owner"]), r["points_a"]), axis=1
+                        )
+                        df["points_b"] = df.apply(
+                            lambda r: score_map.get((r["_sea"], r["_wk"], r["team_b_owner"]), r["points_b"]), axis=1
+                        )
+                        df["winner_team_id"] = df.apply(
+                            lambda r: r["team_a_id"]
+                            if pd.notna(r["points_a"]) and pd.notna(r["points_b"]) and r["points_a"] >= r["points_b"]
+                            else r["team_b_id"],
+                            axis=1,
+                        )
+                        df = df.drop(columns=["_wk", "_sea"])
+                except Exception:
+                    pass  # fall through, return original scores
 
     # Player exclusions (session-only, always applied)
     excluded: list[str] = st.session_state.get("excluded_players", [])
@@ -191,7 +216,7 @@ def apply_league_filter(df: pd.DataFrame) -> pd.DataFrame:
 
 # Positions that are exclusively defensive (IDP or team defense).
 # In 2019 (ESPN), these appear as starters. Later Sleeper seasons have none.
-_DEFENSIVE_POSITION_TOKENS = {"CB", "DB", "DE", "DL", "DT", "LB", "S", "SS", "HC", "DEF", "IDP_FLEX"}
+_DEFENSIVE_POSITION_TOKENS = {"CB", "DB", "DE", "DL", "DT", "LB", "S", "SS", "FS", "HC", "DEF", "IDP_FLEX"}
 
 
 def is_defensive_position(pos: str) -> bool:

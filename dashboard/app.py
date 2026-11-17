@@ -179,37 +179,8 @@ with st.sidebar:
         "register it in `config/leagues.json`, then click Reload Data."
     )
 
-# Cache offensive-only weekly scores so apply_league_filter can rebuild matchup
-# scores on every page without each page needing rosters access.
-_excl_now = st.session_state.get("exclude_defensive", False)
-_lid_now = str(st.session_state.get("selected_league_id"))
-_off_built_excl = st.session_state.get("_off_scores_excl")
-_off_built_lid = st.session_state.get("_off_scores_lid")
-
-if _excl_now and (_off_built_excl != _excl_now or _off_built_lid != _lid_now):
-    import pandas as _pd
-    from utils import filter_offensive_rosters as _foff
-    _rdf = conn.execute("SELECT season, week, owner_name, league_id, position, points, starter FROM rosters").df()
-    _lid_val = st.session_state.get("selected_league_id")
-    if _lid_val and "league_id" in _rdf.columns:
-        _rdf = _rdf[_rdf["league_id"] == _lid_val]
-    _st = _rdf[_rdf["starter"].fillna(False)].copy()
-    _off = _foff(_st)
-    _off["points"] = _pd.to_numeric(_off["points"], errors="coerce").fillna(0)
-    _off["week"] = _pd.to_numeric(_off["week"], errors="coerce")
-    _off = _off.dropna(subset=["week", "season"])
-    _off["season"] = _off["season"].astype(int)
-    _off["week"] = _off["week"].astype(int)
-    _weekly = _off.groupby(["season", "week", "owner_name"])["points"].sum().reset_index()
-    st.session_state["_off_weekly_scores"] = {
-        (int(r["season"]), int(r["week"]), r["owner_name"]): r["points"]
-        for _, r in _weekly.iterrows()
-    }
-elif not _excl_now:
-    st.session_state["_off_weekly_scores"] = {}
-
-st.session_state["_off_scores_excl"] = _excl_now
-st.session_state["_off_scores_lid"] = _lid_now
+# Store conn so apply_league_filter can rebuild matchup scores inline
+st.session_state["_conn"] = conn
 
 page_module = pages[selected]
 mod = importlib.import_module(f"views.{page_module}")
