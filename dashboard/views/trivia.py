@@ -194,6 +194,54 @@ def _generate_questions(matchups_df: pd.DataFrame, rosters_df: pd.DataFrame, dra
                 options=opts_r,
             ))
 
+        # Who drafted McCaffrey / popular players the most
+        for star_player in ["Christian McCaffrey", "Davante Adams", "Tyreek Hill", "Justin Jefferson"]:
+            star_drafts = draft_df[draft_df["player"] == star_player]
+            if len(star_drafts) >= 2:
+                star_counts = star_drafts["owner_name"].value_counts()
+                top_drafter = star_counts.index[0]
+                wrong_sd = [o for o in all_owners if o != top_drafter][:3]
+                if len(wrong_sd) >= 2:
+                    opts_sd = wrong_sd + [top_drafter]
+                    random.shuffle(opts_sd)
+                    questions.append(TriviaQuestion(
+                        question=f"Who has drafted {star_player} the most times?",
+                        answer=top_drafter,
+                        answer_display=top_drafter,
+                        category="Draft",
+                        difficulty="hard",
+                        context=f"{top_drafter} drafted {star_player} {star_counts[top_drafter]} time(s)",
+                        options=opts_sd,
+                    ))
+                    break  # one question from this group is enough
+
+        # Most times drafting same position in first 3 rounds
+        if not draft_df.empty:
+            early_picks = draft_df[draft_df["round"] <= 3]
+            pos_runs = (
+                early_picks.groupby(["season", "owner_name", "position"])
+                .size()
+                .reset_index(name="cnt")
+            )
+            if not pos_runs.empty:
+                top_pos = pos_runs.nlargest(1, "cnt").iloc[0]
+                heavy_drafter = str(top_pos["owner_name"])
+                heavy_pos = str(top_pos["position"])
+                heavy_cnt = int(top_pos["cnt"])
+                wrong_hd = [o for o in all_owners if o != heavy_drafter][:3]
+                if heavy_cnt >= 2 and len(wrong_hd) >= 2:
+                    opts_hd = wrong_hd + [heavy_drafter]
+                    random.shuffle(opts_hd)
+                    questions.append(TriviaQuestion(
+                        question=f"Who drafted {heavy_cnt} {heavy_pos}s in their first 3 rounds in a single season?",
+                        answer=heavy_drafter,
+                        answer_display=heavy_drafter,
+                        category="Draft",
+                        difficulty="hard",
+                        context=f"{heavy_drafter} took {heavy_cnt} {heavy_pos}s in rounds 1–3 (season {int(top_pos['season'])})",
+                        options=opts_hd,
+                    ))
+
         # First round busts (players drafted R1 with below-average VORP or no starts)
         r1_picks = draft_df[draft_df["round"] == 1]
         if not r1_picks.empty and not rosters_df.empty:
@@ -353,10 +401,19 @@ def render(conn) -> None:
         st.warning("Could not generate trivia questions from available data.")
         return
 
-    # Category filter
+    # Category + difficulty filters
+    col_cat, col_diff = st.columns(2)
     all_cats = sorted({q.category for q in questions})
-    sel_cat = st.selectbox("Category", ["All Categories"] + all_cats, key="trivia_cat")
-    filtered = [q for q in questions if sel_cat == "All Categories" or q.category == sel_cat]
+    with col_cat:
+        sel_cat = st.selectbox("Category", ["All Categories"] + all_cats, key="trivia_cat")
+    with col_diff:
+        sel_diff = st.selectbox("Difficulty", ["All", "Easy", "Medium", "Hard"], key="trivia_diff")
+
+    filtered = [
+        q for q in questions
+        if (sel_cat == "All Categories" or q.category == sel_cat)
+        and (sel_diff == "All" or q.difficulty == sel_diff.lower())
+    ]
     if not filtered:
         st.info("No questions in this category.")
         return

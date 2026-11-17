@@ -68,9 +68,39 @@ def render(conn) -> None:
     st.caption(f"Platform: {provider.upper()}")
     st.divider()
 
+    # --- IDP: rebuild matchup scores from offensive-only rosters when needed ---
+    if exclude_def and not season_roster.empty:
+        off_ros = filter_offensive_rosters(
+            season_roster[season_roster["starter"].fillna(False)].copy()
+        )
+        off_ros["week"] = pd.to_numeric(off_ros["week"], errors="coerce")
+        off_ros = off_ros.dropna(subset=["week"])
+        off_ros["week"] = off_ros["week"].astype(int)
+        weekly_off = off_ros.groupby(["week", "owner_name"])["points"].sum().reset_index()
+        score_map = {(int(r["week"]), r["owner_name"]): r["points"] for _, r in weekly_off.iterrows()}
+
+        mdf = season_matchups.copy()
+        mdf["_wk"] = pd.to_numeric(mdf["week"], errors="coerce").fillna(0).astype(int)
+        mdf["points_a"] = mdf.apply(
+            lambda r: score_map.get((r["_wk"], r["team_a_owner"]), r["points_a"]), axis=1
+        )
+        mdf["points_b"] = mdf.apply(
+            lambda r: score_map.get((r["_wk"], r["team_b_owner"]), r["points_b"]), axis=1
+        )
+        mdf["winner_team_id"] = mdf.apply(
+            lambda r: r["team_a_id"]
+            if pd.notna(r["points_a"]) and pd.notna(r["points_b"]) and r["points_a"] >= r["points_b"]
+            else r["team_b_id"],
+            axis=1,
+        )
+        mdf = mdf.drop(columns=["_wk"])
+        season_matchups_idp = mdf
+    else:
+        season_matchups_idp = season_matchups
+
     # --- Section 2: Final Standings ---
     st.subheader("Final Standings")
-    standings = season_standings(season_matchups, selected_season)
+    standings = season_standings(season_matchups_idp, selected_season)
     if standings.empty:
         st.info("No standings data available.")
     else:

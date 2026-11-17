@@ -75,14 +75,21 @@ def render(conn) -> None:
     seasons = sorted(rosters_df["season"].dropna().unique(), reverse=True)
     owners = sorted(rosters_df["owner_name"].dropna().unique())
 
-    tab_overview, tab_manager, tab_player, tab_timing = st.tabs([
-        "League Overview", "By Manager", "By Player", "Injury Timing",
+    tab_overview, tab_manager, tab_player, tab_timing, tab_duds = st.tabs([
+        "League Overview", "By Manager", "By Player", "Injury Timing", "Duds Leaderboard",
     ])
 
     # ── Overview ────────────────────────────────────────────────────────────
     with tab_overview:
-        sel_season = st.selectbox("Season", seasons, key="inj_ov_season")
-        s_busts = busts[busts["season"] == sel_season]
+        season_opts = ["All Seasons"] + [str(s) for s in seasons]
+        sel_season_label = st.selectbox("Season", season_opts, key="inj_ov_season")
+        if sel_season_label == "All Seasons":
+            s_busts = busts.copy()
+            season_title = "All Seasons"
+        else:
+            sel_season = int(sel_season_label)
+            s_busts = busts[busts["season"] == sel_season]
+            season_title = str(sel_season)
 
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("DNP/bust events", len(s_busts))
@@ -110,7 +117,7 @@ def render(conn) -> None:
                     labels={"pts_lost": "Pts Lost vs Projection"},
                     color="pts_lost",
                     color_continuous_scale="Reds",
-                    title=f"{sel_season} — Projected pts lost to busts/injuries by manager",
+                    title=f"{season_title} — Projected pts lost to busts/injuries by manager",
                 )
             else:
                 burden = (
@@ -124,14 +131,15 @@ def render(conn) -> None:
                     labels={"dnp_events": "DNP/Inactive Starters"},
                     color="dnp_events",
                     color_continuous_scale="Reds",
-                    title=f"{sel_season} — DNP/inactive starter events by manager",
+                    title=f"{season_title} — DNP/inactive starter events by manager",
                 )
             fig.update_coloraxes(showscale=False)
             st.plotly_chart(fig, use_container_width=True)
 
-            with st.expander("All DNP/bust events this season"):
-                disp_cols = ["week", "owner_name", "player", "position", "points"]
-                rename_map = {"owner_name": "Manager", "player": "Player", "position": "Pos", "points": "Actual"}
+            expander_label = f"All DNP/bust events — {season_title}"
+            with st.expander(expander_label):
+                disp_cols = ["season", "week", "owner_name", "player", "position", "points"] if sel_season_label == "All Seasons" else ["week", "owner_name", "player", "position", "points"]
+                rename_map = {"owner_name": "Manager", "player": "Player", "position": "Pos", "points": "Actual", "season": "Season"}
                 if has_proj and "projected" in s_busts.columns:
                     disp_cols += ["projected", "pct_of_proj"]
                     rename_map.update({"projected": "Proj", "pct_of_proj": "% of Proj"})
@@ -141,7 +149,9 @@ def render(conn) -> None:
                 if "Proj" in display.columns:
                     display["Proj"] = display["Proj"].round(1)
                 display["Actual"] = display["Actual"].round(1)
-                st.dataframe(display.sort_values(["week", "Manager"]),
+                sort_cols = ["Season", "week", "Manager"] if "Season" in display.columns else ["week", "Manager"]
+                sort_cols = [c for c in sort_cols if c in display.columns]
+                st.dataframe(display.sort_values(sort_cols) if sort_cols else display,
                              use_container_width=True, hide_index=True)
 
     # ── By Manager ──────────────────────────────────────────────────────────
@@ -217,6 +227,71 @@ def render(conn) -> None:
             )
             summary["Total Pts Lost"] = summary["Total Pts Lost"].round(1)
             st.dataframe(summary, use_container_width=True, hide_index=True)
+
+    # ── Duds Leaderboard ────────────────────────────────────────────────────
+    with tab_duds:
+        st.subheader("Duds Leaderboard")
+        st.caption(
+            "Who had the most DNP/inactive starters? "
+            "A 'dud' is a starter who scored ≤ 2 pts (likely injured, IR'd, or benched)."
+        )
+
+        # All-time summary per manager
+        dud_summary = (
+            busts.groupby("owner_name")
+            .agg(
+                total_duds=("player", "count"),
+                seasons_affected=("season", "nunique"),
+                unique_players=("player", "nunique"),
+            )
+            .reset_index()
+            .rename(columns={
+                "owner_name": "Manager",
+                "total_duds": "Total Duds",
+                "seasons_affected": "Seasons",
+                "unique_players": "Unique Players",
+            })
+            .sort_values("Total Duds", ascending=False)
+        )
+
+        fig_duds = px.bar(
+            dud_summary, x="Manager", y="Total Duds",
+            color="Total Duds",
+            color_continuous_scale="OrRd",
+            title="All-Time Dud Starters by Manager",
+        )
+        fig_duds.update_coloraxes(showscale=False)
+        st.plotly_chart(fig_duds, use_container_width=True)
+        st.dataframe(dud_summary, use_container_width=True, hide_index=True)
+
+        st.divider()
+
+        # Per-season breakdown
+        st.subheader("Duds Per Season")
+        dud_by_season = (
+            busts.groupby(["season", "owner_name"])
+            .size()
+            .reset_index(name="duds")
+            .rename(columns={"owner_name": "Manager"})
+        )
+        pivot_duds = dud_by_season.pivot_table(index="Manager", columns="season", values="duds", fill_value=0)
+        pivot_duds["Total"] = pivot_duds.sum(axis=1)
+        pivot_duds = pivot_duds.sort_values("Total", ascending=False)
+        st.dataframe(pivot_duds, use_container_width=True)
+
+        st.divider()
+
+        # Worst single weeks (most duds in one week by one manager)
+        st.subheader("Worst Dud Weeks")
+        worst_weeks = (
+            busts.groupby(["season", "week", "owner_name"])
+            .size()
+            .reset_index(name="duds_in_week")
+            .rename(columns={"owner_name": "Manager"})
+            .nlargest(20, "duds_in_week")
+        )
+        worst_weeks["week"] = worst_weeks["week"].astype(int) if worst_weeks["week"].dtype != object else worst_weeks["week"]
+        st.dataframe(worst_weeks, use_container_width=True, hide_index=True)
 
     # ── Injury Timing ───────────────────────────────────────────────────────
     with tab_timing:
