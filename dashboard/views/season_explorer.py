@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).parents[1]))
 sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
 
 from fantasy.analytics.standings import season_standings
-from utils import apply_league_filter
+from utils import apply_league_filter, filter_offensive_rosters, season_has_idp
 
 _known_seasons = [2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026]
 
@@ -30,6 +30,7 @@ def render(conn) -> None:
     seasons_df = apply_league_filter(conn.execute("SELECT * FROM seasons ORDER BY season").df())
     seasons_df = seasons_df.drop_duplicates(subset=["season"])
     draft_df = apply_league_filter(conn.execute("SELECT * FROM draft_picks ORDER BY overall").df())
+    roster_df = apply_league_filter(conn.execute("SELECT * FROM rosters").df())
 
     available = sorted(matchups_df["season"].unique())
     provider_map = dict(zip(seasons_df["season"], seasons_df["provider"], strict=False))
@@ -41,8 +42,20 @@ def render(conn) -> None:
 
     season_matchups = matchups_df[matchups_df["season"] == selected_season].copy()
     season_draft = draft_df[draft_df["season"] == selected_season].copy()
+    season_roster = roster_df[roster_df["season"] == selected_season].copy()
     provider = provider_map.get(selected_season, "unknown")
     num_teams = num_teams_map.get(selected_season, "?")
+
+    # IDP toggle — only shown when season has defensive players
+    has_idp = season_has_idp(season_roster, selected_season)
+    exclude_def = False
+    if has_idp:
+        exclude_def = st.checkbox(
+            "Exclude defensive players from scoring (IDP season)",
+            value=True,
+            help="This season used Individual Defensive Players (IDP). "
+                 "Excluding them makes scores comparable to later offensive-only seasons.",
+        )
 
     # --- Section 1: Season Summary ---
     st.subheader("Season Summary")
@@ -90,13 +103,29 @@ def render(conn) -> None:
     reg["week"] = reg["week"].astype(int)
 
     if not reg.empty:
-        rows_a = reg[["week", "team_a_owner", "points_a"]].rename(
-            columns={"team_a_owner": "owner", "points_a": "pts"}
-        )
-        rows_b = reg[["week", "team_b_owner", "points_b"]].rename(
-            columns={"team_b_owner": "owner", "points_b": "pts"}
-        )
-        all_scores = pd.concat([rows_a, rows_b]).dropna(subset=["pts"])
+        if exclude_def and not season_roster.empty:
+            # Recalculate team scores from offensive starters only
+            off_roster = filter_offensive_rosters(
+                season_roster[(season_roster["starter"] == True) & (season_roster["season"] == selected_season)]
+            )
+            weekly_totals = (
+                off_roster.groupby(["week", "owner_name"])["points"]
+                .sum()
+                .reset_index(name="pts")
+                .rename(columns={"owner_name": "owner"})
+            )
+            weekly_totals["week"] = pd.to_numeric(weekly_totals["week"], errors="coerce").dropna().astype(int)
+            all_scores = weekly_totals.dropna(subset=["pts"])
+            if has_idp:
+                st.caption("⚠️ Scores recalculated from offensive starters only (QB/RB/WR/TE/K). Defensive player scores excluded.")
+        else:
+            rows_a = reg[["week", "team_a_owner", "points_a"]].rename(
+                columns={"team_a_owner": "owner", "points_a": "pts"}
+            )
+            rows_b = reg[["week", "team_b_owner", "points_b"]].rename(
+                columns={"team_b_owner": "owner", "points_b": "pts"}
+            )
+            all_scores = pd.concat([rows_a, rows_b]).dropna(subset=["pts"])
         pivot = all_scores.pivot_table(index="owner", columns="week", values="pts", aggfunc="mean")
         fig = px.imshow(
             pivot,

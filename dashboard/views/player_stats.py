@@ -11,7 +11,7 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).parents[1]))
 sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
 
-from utils import apply_league_filter, style_dataframe
+from utils import apply_league_filter, filter_offensive_rosters, season_has_idp, style_dataframe
 
 
 def render(conn) -> None:
@@ -36,16 +36,29 @@ def render(conn) -> None:
     with col2:
         selected_manager = st.selectbox("Manager", all_owners, key="ps_manager")
 
+    # IDP toggle — only shown when season has defensive players
+    has_idp = season_has_idp(roster_df, selected_season)
+    exclude_def = False
+    if has_idp:
+        exclude_def = st.checkbox(
+            "Exclude defensive players (IDP season)",
+            value=True,
+            help="This season used Individual Defensive Players (IDP). Excluding them makes scoring comparable to later seasons.",
+            key="ps_excl_def",
+        )
+
+    filtered_roster = filter_offensive_rosters(roster_df) if exclude_def else roster_df
+
     tab1, tab2, tab3 = st.tabs(["📋 Roster Stats", "⚔️ Matchup History", "🌟 Top Performers"])
 
     with tab1:
-        _roster_tab(roster_df, selected_season, selected_manager)
+        _roster_tab(filtered_roster, selected_season, selected_manager)
 
     with tab2:
         _matchup_tab(matchups_df, selected_season, selected_manager)
 
     with tab3:
-        _top_performers_tab(roster_df)
+        _top_performers_tab(filtered_roster)
 
 
 def _roster_tab(roster_df: pd.DataFrame, season: int, manager: str) -> None:

@@ -124,6 +124,35 @@ def apply_league_filter(df: pd.DataFrame) -> pd.DataFrame:
 # Dynasty league helpers
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# IDP / defensive position helpers
+# ---------------------------------------------------------------------------
+
+# Positions that are exclusively defensive (IDP or team defense).
+# In 2019 (ESPN), these appear as starters. Later Sleeper seasons have none.
+_DEFENSIVE_POSITION_TOKENS = {"CB", "DB", "DE", "DL", "DT", "LB", "S", "SS", "HC", "DEF", "IDP_FLEX"}
+
+
+def is_defensive_position(pos: str) -> bool:
+    """Return True if ALL tokens in a position string are defensive."""
+    if not pos or not isinstance(pos, str):
+        return False
+    tokens = {t.strip() for t in pos.split(",")}
+    return bool(tokens) and tokens.issubset(_DEFENSIVE_POSITION_TOKENS)
+
+
+def season_has_idp(roster_df: pd.DataFrame, season: int) -> bool:
+    """Return True if any starter in season has a defensive position."""
+    s = roster_df[(roster_df["season"] == season) & (roster_df["starter"] == True)]
+    return any(is_defensive_position(str(p)) for p in s["position"].dropna())
+
+
+def filter_offensive_rosters(roster_df: pd.DataFrame) -> pd.DataFrame:
+    """Remove rows where position is purely defensive."""
+    mask = ~roster_df["position"].apply(lambda p: is_defensive_position(str(p)) if pd.notna(p) else False)
+    return roster_df[mask].copy()
+
+
 _DYNASTY_LEAGUE_KEYWORDS = {"dynasty"}
 
 
