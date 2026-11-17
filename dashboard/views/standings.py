@@ -168,6 +168,8 @@ def render(conn) -> None:
     with tab1:
         if all_time:
             career = career_standings(matchups_df, league_id=lid)
+            if "seasons_played" in career.columns and min_seasons_filter > 1:
+                career = career[career["seasons_played"] >= min_seasons_filter].reset_index(drop=True)
             if career.empty:
                 st.info("No career data available.")
             else:
