@@ -27,16 +27,31 @@ def render(conn) -> None:
         st.info("No matchup data available.")
         return
 
-    all_owners = sorted(
+    all_owners_full = sorted(
         set(matchups_df["team_a_owner"].dropna()) | set(matchups_df["team_b_owner"].dropna())
     )
+
+    min_seasons_filter = st.session_state.get("min_seasons_played", 1)
+    if min_seasons_filter > 1:
+        seasons_per_owner = (
+            pd.concat([
+                matchups_df[["team_a_owner", "season"]].rename(columns={"team_a_owner": "owner"}),
+                matchups_df[["team_b_owner", "season"]].rename(columns={"team_b_owner": "owner"}),
+            ])
+            .dropna(subset=["owner"])
+            .groupby("owner")["season"]
+            .nunique()
+        )
+        all_owners = [o for o in all_owners_full if seasons_per_owner.get(o, 0) >= min_seasons_filter]
+    else:
+        all_owners = all_owners_full
 
     tab_top, tab_spotlight, tab_matrix = st.tabs(
         ["🔥 Top Rivalries", "🔍 Rivalry Spotlight", "📊 Rivalry Matrix"]
     )
 
     with tab_top:
-        _render_top_rivalries(matchups_df)
+        _render_top_rivalries(matchups_df, all_owners)
 
     with tab_spotlight:
         _render_spotlight(matchups_df, all_owners)
@@ -45,7 +60,7 @@ def render(conn) -> None:
         _render_matrix(matchups_df, all_owners)
 
 
-def _render_top_rivalries(matchups_df: pd.DataFrame) -> None:
+def _render_top_rivalries(matchups_df: pd.DataFrame, filtered_owners: list[str] | None = None) -> None:
     df = all_rivalries(matchups_df)
     if df.empty:
         st.info("Not enough matchup data to compute rivalries.")
@@ -58,6 +73,12 @@ def _render_top_rivalries(matchups_df: pd.DataFrame) -> None:
     )
 
     display = df.copy()
+    if filtered_owners:
+        owner_set = set(filtered_owners)
+        display = display[display["owner_a"].isin(owner_set) & display["owner_b"].isin(owner_set)].reset_index(drop=True)
+    if display.empty:
+        st.info("No rivalry data for the current season filter.")
+        return
     display["Record (A–B)"] = display.apply(
         lambda r: f"{int(r['a_wins'])}–{int(r['b_wins'])}" + (f"–{int(r['ties'])} T" if r["ties"] else ""),
         axis=1,
