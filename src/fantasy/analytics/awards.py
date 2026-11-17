@@ -145,6 +145,33 @@ def season_awards(
     except Exception:
         pass
 
+    # --- schedule difficulty (avg opponent score) ---
+    try:
+        reg = _regular_season(matchups_df, season)
+        if not reg.empty:
+            reg = reg.dropna(subset=["points_a", "points_b"])
+            opp_a = reg[["team_a_owner", "points_b"]].rename(columns={"team_a_owner": "owner", "points_b": "opp_pts"})
+            opp_b = reg[["team_b_owner", "points_a"]].rename(columns={"team_b_owner": "owner", "points_a": "opp_pts"})
+            opp_all = pd.concat([opp_a, opp_b])
+            sched = opp_all.groupby("owner")["opp_pts"].mean().reset_index(name="avg_opp_pts")
+            if len(sched) >= 2:
+                hardest = sched.loc[sched["avg_opp_pts"].idxmax()]
+                easiest = sched.loc[sched["avg_opp_pts"].idxmin()]
+                awards["Hardest Schedule"] = {
+                    "winner": hardest["owner"],
+                    "value": f"{hardest['avg_opp_pts']:.1f} avg opp pts/wk",
+                    "description": "Faced the toughest opponents on average",
+                    "runner_up": None,
+                }
+                awards["Luckiest Schedule"] = {
+                    "winner": easiest["owner"],
+                    "value": f"{easiest['avg_opp_pts']:.1f} avg opp pts/wk",
+                    "description": "Faced the weakest opponents on average — easiest path",
+                    "runner_up": None,
+                }
+    except Exception:
+        pass
+
     # --- blowout king / glass jaw ---
     try:
         reg = _regular_season(matchups_df, season)
@@ -394,6 +421,36 @@ def all_time_awards(
                 "description": "Lifetime luck deficit — consistently deserved better",
                 "runner_up": None,
             }
+    except Exception:
+        pass
+
+    # --- career schedule difficulty ---
+    try:
+        reg_all_sched = matchups_df[
+            ~matchups_df["is_playoff"].fillna(False) &
+            ~matchups_df["is_consolation"].fillna(False) &
+            ~matchups_df["is_championship"].fillna(False)
+        ].dropna(subset=["points_a", "points_b"])
+        if not reg_all_sched.empty:
+            opp_a = reg_all_sched[["team_a_owner", "points_b"]].rename(columns={"team_a_owner": "owner", "points_b": "opp_pts"})
+            opp_b = reg_all_sched[["team_b_owner", "points_a"]].rename(columns={"team_b_owner": "owner", "points_a": "opp_pts"})
+            opp_all = pd.concat([opp_a, opp_b])
+            sched = opp_all.groupby("owner")["opp_pts"].mean().reset_index(name="avg_opp_pts")
+            if len(sched) >= 2:
+                hardest = sched.loc[sched["avg_opp_pts"].idxmax()]
+                easiest = sched.loc[sched["avg_opp_pts"].idxmin()]
+                awards["Hardest Schedule (Career)"] = {
+                    "winner": hardest["owner"],
+                    "value": f"{hardest['avg_opp_pts']:.1f} avg opp pts/wk",
+                    "description": "Faced the toughest opponents on average across all seasons",
+                    "runner_up": None,
+                }
+                awards["Luckiest Schedule (Career)"] = {
+                    "winner": easiest["owner"],
+                    "value": f"{easiest['avg_opp_pts']:.1f} avg opp pts/wk",
+                    "description": "Faced the weakest opponents on average — easiest career path",
+                    "runner_up": None,
+                }
     except Exception:
         pass
 

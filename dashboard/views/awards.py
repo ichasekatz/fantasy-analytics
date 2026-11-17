@@ -96,6 +96,10 @@ _AWARD_EMOJIS: dict[str, str] = {
     "Most Points Against": "🤕",
     "Luckiest Manager": "🍀",
     "Unluckiest Manager": "😤",
+    "Luckiest Schedule": "🎰",
+    "Hardest Schedule": "🗿",
+    "Luckiest Schedule (Career)": "🎰",
+    "Hardest Schedule (Career)": "🗿",
     "Scoring Machine": "💥",
     "Blowout King": "👑",
     "Glass Jaw": "💔",
@@ -153,10 +157,19 @@ def _render_annual(
         st.info("No data available.")
         return
 
-    selected_season = st.selectbox("Season", seasons, index=0, key="awards_season")
+    season_opts = ["All Time (combined)"] + [str(s) for s in seasons]
+    selected_label = st.selectbox("Season", season_opts, index=1, key="awards_season")
 
+    if selected_label == "All Time (combined)":
+        with st.spinner("Computing all-time awards..."):
+            from fantasy.analytics.awards import all_time_awards
+            awards = all_time_awards(matchups_df, rosters_df, draft_df, lid)
+        _render_awards_grid(awards)
+        return
+
+    selected_season = int(selected_label)
     with st.spinner("Computing awards..."):
-        awards = season_awards(matchups_df, rosters_df, draft_df, int(selected_season), lid)
+        awards = season_awards(matchups_df, rosters_df, draft_df, selected_season, lid)
 
     _render_awards_grid(awards)
 

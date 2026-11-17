@@ -50,17 +50,36 @@ def _primary_league_ids() -> set[str]:
 def build_name_map(conn) -> dict[str, str]:
     """Build raw_name → canonical display_name map from the identity registry.
 
+    Also maps team names (e.g. "Ford F150") → canonical owner name so that
+    trade / waiver data extracted from parties JSON resolves correctly.
+
     Returns empty dict if identity tables are missing or empty.
     """
+    mapping: dict[str, str] = {}
     try:
         rows = conn.execute("""
             SELECT ma.raw_name, cm.display_name
             FROM manager_aliases ma
             JOIN canonical_managers cm ON ma.canonical_id = cm.canonical_id
         """).fetchall()
-        return {raw: display for raw, display in rows if raw != display}
+        mapping.update({raw: display for raw, display in rows if raw != display})
     except Exception:
-        return {}
+        pass
+
+    # Also map team names → canonical owner names from rosters
+    try:
+        team_rows = conn.execute("""
+            SELECT DISTINCT team, owner_name
+            FROM rosters
+            WHERE team IS NOT NULL AND team != '' AND owner_name IS NOT NULL AND owner_name != ''
+        """).fetchall()
+        for team_name, owner_name in team_rows:
+            if team_name and owner_name and team_name != owner_name:
+                mapping[team_name] = owner_name
+    except Exception:
+        pass
+
+    return mapping
 
 
 def resolve_owner_names(df: pd.DataFrame) -> pd.DataFrame:

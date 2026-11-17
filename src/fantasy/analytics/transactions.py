@@ -55,11 +55,18 @@ def _extract_parties(parties_str: str | None) -> tuple[str, str]:
         if not isinstance(party, dict):
             continue
         ptype = party.get("type", "")
-        name = party.get("owner") or party.get("name") or party.get("teamName") or ""
+        name = party.get("owner") or party.get("name") or party.get("teamName") or party.get("team") or ""
         if ptype == "add" and not add_owner:
             add_owner = str(name)
         elif ptype == "drop" and not drop_owner:
             drop_owner = str(name)
+
+    # Fallback: single-party add/drop has no type inside the party dict —
+    # the first party IS the owner for both add and drop.
+    if not add_owner and len(parties) == 1 and isinstance(parties[0], dict):
+        name = parties[0].get("owner") or parties[0].get("name") or parties[0].get("teamName") or parties[0].get("team") or ""
+        add_owner = str(name)
+        drop_owner = str(name)
     return add_owner, drop_owner
 
 
@@ -84,7 +91,7 @@ def _extract_trade_owners(parties_str: str | None) -> str:
     for party in parties:
         if not isinstance(party, dict):
             continue
-        name = str(party.get("owner") or party.get("name") or party.get("teamName") or "")
+        name = str(party.get("owner") or party.get("name") or party.get("teamName") or party.get("team") or "")
         if name and name not in seen:
             names.append(name)
             seen.add(name)
