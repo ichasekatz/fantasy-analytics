@@ -116,7 +116,7 @@ def _hof_exclude_pos(p: object) -> bool:
 
 
 def _render_categories(career, rosters_df, draft_df) -> None:
-    if st.checkbox("Exclude defensive players (IDP)", value=False, key="phof_cat_excl_def"):
+    if st.checkbox("Exclude defensive players (IDP)", value=True, key="phof_cat_excl_def"):
         career = career[~career["position"].apply(_hof_exclude_pos)]
 
     st.subheader("Most Consistently Drafted")

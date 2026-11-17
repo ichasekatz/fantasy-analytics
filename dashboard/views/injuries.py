@@ -286,7 +286,7 @@ def render(conn) -> None:
         lambda p: is_defensive_position(str(p)) if pd.notna(p) else False
     ).any()
     if has_idp_positions:
-        exclude_idp_inj = st.checkbox("Exclude defensive players (IDP)", value=False, key="inj_exclude_idp")
+        exclude_idp_inj = st.checkbox("Exclude defensive players (IDP)", value=True, key="inj_exclude_idp")
         if exclude_idp_inj:
             def _inj_exclude(p: object) -> bool:
                 if not pd.notna(p):
