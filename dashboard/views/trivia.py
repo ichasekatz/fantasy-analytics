@@ -45,7 +45,7 @@ def _generate_questions(matchups_df: pd.DataFrame, rosters_df: pd.DataFrame, dra
         matchups_df[["season", "week", "team_b_owner", "points_b"]].rename(columns={"team_b_owner": "owner", "points_b": "pts"}),
     ]).dropna(subset=["pts"])
     if not all_scores.empty and all_scores["pts"].notna().any():
-        top_row = all_scores.loc[all_scores["pts"].idxmax()]
+        top_row = all_scores.nlargest(1, "pts").iloc[0]
         answer = str(top_row["owner"])
         wrong = [o for o in all_owners if o != answer][:3]
         opts = wrong + [answer]
@@ -82,7 +82,7 @@ def _generate_questions(matchups_df: pd.DataFrame, rosters_df: pd.DataFrame, dra
         wins_b = reg[reg["winner_team_id"] == reg["team_b_id"]][["team_b_owner", "points_b"]].rename(columns={"team_b_owner": "owner", "points_b": "pts"})
         all_wins = pd.concat([wins_a, wins_b]).dropna()
         if not all_wins.empty:
-            min_win = all_wins.loc[all_wins["pts"].idxmin()]
+            min_win = all_wins.nsmallest(1, "pts").iloc[0]
             answer3 = str(min_win["owner"])
             wrong3 = [o for o in all_owners if o != answer3][:3]
             opts3 = wrong3 + [answer3]
@@ -123,7 +123,7 @@ def _generate_questions(matchups_df: pd.DataFrame, rosters_df: pd.DataFrame, dra
         if champs["margin"].isna().all():
             closest = None
         else:
-            closest = champs.loc[champs["margin"].idxmin()]
+            closest = champs.nsmallest(1, "margin").iloc[0]
         if closest is not None:
             closest_season = int(closest["season"])
             wrong_seasons = [s for s in seasons if s != closest_season][:3]
@@ -242,7 +242,7 @@ def _generate_questions(matchups_df: pd.DataFrame, rosters_df: pd.DataFrame, dra
         # Highest single season points
         season_owner_pts = all_scores.groupby(["season", "owner"])["pts"].sum().reset_index()
         if not season_owner_pts.empty:
-            top_season = season_owner_pts.loc[season_owner_pts["pts"].idxmax()]
+            top_season = season_owner_pts.nlargest(1, "pts").iloc[0]
             ts_owner = str(top_season["owner"])
             wrong_ts = [o for o in all_owners if o != ts_owner][:3]
             opts_ts = wrong_ts + [ts_owner]
