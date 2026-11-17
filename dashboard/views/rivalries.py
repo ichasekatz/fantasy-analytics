@@ -198,33 +198,72 @@ def _render_spotlight(matchups_df: pd.DataFrame, all_owners: list[str]) -> None:
 
 
 def _render_matrix(matchups_df: pd.DataFrame, all_owners: list[str]) -> None:
+    import numpy as np
+    import plotly.graph_objects as go
+
     st.subheader("Head-to-Head Win % Matrix")
-    st.caption("Row manager's win % against column manager. — = no meetings.")
+    st.caption("Row manager's win % against column manager. Gray = no meetings. Green > 50%, Red < 50%.")
 
     if len(all_owners) < 2:
         st.info("Need at least two managers.")
         return
 
-    # Build matrix
-    matrix: dict[str, dict[str, str]] = {o: {} for o in all_owners}
+    n = len(all_owners)
+    num_matrix = [[float("nan")] * n for _ in range(n)]
+    text_matrix = [[""] * n for _ in range(n)]
 
-    for i, owner_a in enumerate(all_owners):
-        for owner_b in all_owners[i + 1:]:
-            stats = rivalry_stats(matchups_df, owner_a, owner_b)
-            if stats["total_meetings"] == 0:
-                matrix[owner_a][owner_b] = "—"
-                matrix[owner_b][owner_a] = "—"
+    # Cache all pair stats to avoid double-querying
+    pair_cache: dict[tuple[int, int], dict] = {}
+    for i in range(n):
+        for j in range(i + 1, n):
+            pair_cache[(i, j)] = rivalry_stats(matchups_df, all_owners[i], all_owners[j])
+
+    for i in range(n):
+        for j in range(n):
+            if i == j:
+                text_matrix[i][j] = "—"
+                continue
+            lo, hi = (i, j) if i < j else (j, i)
+            stats = pair_cache[(lo, hi)]
+            total = stats["total_meetings"]
+            if total == 0:
+                text_matrix[i][j] = "—"
                 continue
             a_wins, b_wins, ties = stats["all_time_record"]
-            total = stats["total_meetings"]
-            pct_a = (a_wins + 0.5 * ties) / total
-            pct_b = (b_wins + 0.5 * ties) / total
-            matrix[owner_a][owner_b] = f"{pct_a:.0%}"
-            matrix[owner_b][owner_a] = f"{pct_b:.0%}"
+            # a is always all_owners[lo]; row i wins when i == lo → a_wins else b_wins
+            if i == lo:
+                pct = (a_wins + 0.5 * ties) / total
+            else:
+                pct = (b_wins + 0.5 * ties) / total
+            num_matrix[i][j] = pct
+            text_matrix[i][j] = f"{pct:.0%}<br>({int(total)}g)"
 
-    for o in all_owners:
-        matrix[o][o] = "—"
+    z = [[v if not (isinstance(v, float) and v != v) else None for v in row] for row in num_matrix]
 
-    matrix_df = pd.DataFrame(matrix, index=all_owners, columns=all_owners)
-    st.dataframe(matrix_df, use_container_width=True)
-    st.caption("Read as: row manager's win% against each column manager.")
+    fig = go.Figure(data=go.Heatmap(
+        z=z,
+        x=all_owners,
+        y=all_owners,
+        text=text_matrix,
+        texttemplate="%{text}",
+        colorscale=[
+            [0.0, "#ef4444"],    # 0% = red
+            [0.5, "#fbbf24"],    # 50% = yellow
+            [1.0, "#22c55e"],    # 100% = green
+        ],
+        zmid=0.5,
+        zmin=0.0,
+        zmax=1.0,
+        colorbar={"title": "Win%", "tickformat": ".0%"},
+        hoverongaps=False,
+    ))
+    fig.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        height=max(400, n * 45),
+        xaxis={"side": "top", "tickangle": -30},
+        font={"size": 11},
+        margin={"t": 120, "l": 10, "r": 10, "b": 10},
+    )
+    st.plotly_chart(fig, use_container_width=True)
+    st.caption("Read as: row manager's win% against each column manager. Number in parentheses = total games.")

@@ -53,9 +53,7 @@ SHAME_BADGES: list[dict] = [
         "award": "Omarion Hampton Badge",
         "description": "Drafted Omarion Hampton in 2026. He was bad.",
         "player": "Omarion Hampton",
-        "recipients": [
-            {"owner": "Jonah Grettler", "team": "Oozma Kappa", "season": 2026, "round": 3, "overall": 31},
-        ],
+        "recipients": [],
     },
 ]
 

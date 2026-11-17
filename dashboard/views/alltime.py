@@ -14,8 +14,55 @@ sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
 
 from fantasy.analytics.bad_beats import bad_beat_index
 from fantasy.analytics.records import all_records
-from fantasy.analytics.standings import career_standings
-from utils import apply_league_filter
+from fantasy.analytics.standings import career_standings, season_standings
+from utils import apply_league_filter, style_dataframe
+
+
+def _avg_season_rank(matchups_df: pd.DataFrame, lid: str | None) -> pd.DataFrame:
+    seasons = sorted(matchups_df["season"].dropna().unique())
+    rows = []
+    for s in seasons:
+        st_df = season_standings(matchups_df, int(s), lid)
+        if st_df.empty:
+            continue
+        n = len(st_df)
+        pf_ranks = st_df["points_for"].fillna(0).rank(ascending=False, method="min").astype(int)
+        pa_ranks = st_df["points_against"].fillna(0).rank(ascending=True, method="min").astype(int)
+        for rank, (idx, row) in enumerate(st_df.iterrows(), start=1):
+            pct_rank = 1.0 - (rank - 1) / max(n - 1, 1)
+            pf_r = int(pf_ranks.loc[idx])
+            pa_r = int(pa_ranks.loc[idx])
+            rows.append({
+                "owner": row["owner"],
+                "season": int(s),
+                "finish": rank,
+                "field_size": n,
+                "pct_rank": pct_rank,
+                "h2h_win_pct": row.get("h2h_win_pct", float("nan")),
+                "pf_pct_rank": 1.0 - (pf_r - 1) / max(n - 1, 1),
+                "pa_pct_rank": 1.0 - (pa_r - 1) / max(n - 1, 1),
+            })
+    if not rows:
+        return pd.DataFrame()
+    df = pd.DataFrame(rows)
+    summary = (
+        df.groupby("owner")
+        .agg(
+            seasons=("season", "count"),
+            avg_finish=("finish", "mean"),
+            best_finish=("finish", "min"),
+            worst_finish=("finish", "max"),
+            avg_pct_rank=("pct_rank", "mean"),
+            avg_win_pct=("h2h_win_pct", "mean"),
+            avg_pf_pct_rank=("pf_pct_rank", "mean"),
+            avg_pa_pct_rank=("pa_pct_rank", "mean"),
+            season_list=("season", lambda x: ", ".join(str(s) for s in sorted(x))),
+        )
+        .reset_index()
+    )
+    for col in ("avg_finish", "avg_pct_rank", "avg_win_pct", "avg_pf_pct_rank", "avg_pa_pct_rank"):
+        summary[col] = summary[col].round(3)
+    return summary.sort_values("avg_pct_rank", ascending=False).reset_index(drop=True)
 
 
 def render(conn) -> None:
@@ -28,7 +75,9 @@ def render(conn) -> None:
 
     matchups_df = apply_league_filter(conn.execute("SELECT * FROM matchups").df())
 
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["Career Leaderboards", "Single-Game Records", "Streaks", "Championships", "💔 Bad Beats", "📖 Full Record Book"])
+    lid = st.session_state.get("selected_league_id")
+
+    tab1, tab_rank, tab2, tab3, tab4, tab5, tab6 = st.tabs(["Career Leaderboards", "Avg Season Rank", "Single-Game Records", "Streaks", "Championships", "💔 Bad Beats", "📖 Full Record Book"])
 
     with tab1:
         career = career_standings(matchups_df)
@@ -52,6 +101,40 @@ def render(conn) -> None:
                 color_discrete_sequence=["#1f77b4"],
             )
             st.plotly_chart(fig, use_container_width=True)
+
+    with tab_rank:
+        st.caption(
+            "Average finish per season, normalized for field size. "
+            "Avg Pct Rank: 1.0 = finished 1st every year, 0.0 = last every year. "
+            "Avg PF/PA Rank: 1.0 = best scoring/fewest points against every year."
+        )
+        rank_df = _avg_season_rank(matchups_df, lid)
+        if rank_df.empty:
+            st.info("No data.")
+        else:
+            rank_df.insert(0, "Rank", range(1, len(rank_df) + 1))
+            cols_to_show = ["Rank", "owner", "avg_finish", "best_finish", "worst_finish",
+                            "avg_pct_rank", "avg_win_pct"]
+            rename_map = {
+                "owner": "Manager", "avg_finish": "Avg Finish",
+                "best_finish": "Best", "worst_finish": "Worst",
+                "avg_pct_rank": "Avg Pct Rank", "avg_win_pct": "Avg Win%",
+                "seasons": "Seasons", "season_list": "Seasons List",
+            }
+            if "avg_pf_pct_rank" in rank_df.columns:
+                cols_to_show.append("avg_pf_pct_rank")
+                rename_map["avg_pf_pct_rank"] = "Avg PF Rank"
+            if "avg_pa_pct_rank" in rank_df.columns:
+                cols_to_show.append("avg_pa_pct_rank")
+                rename_map["avg_pa_pct_rank"] = "Avg PA Rank"
+            cols_to_show += ["seasons", "season_list"]
+            out = rank_df[[c for c in cols_to_show if c in rank_df.columns]].rename(columns=rename_map)
+            styled = style_dataframe(
+                out,
+                higher_is_better=["Avg Pct Rank", "Avg Win%", "Avg PF Rank", "Avg PA Rank", "Seasons"],
+                lower_is_better=["Avg Finish", "Best", "Worst"],
+            )
+            st.dataframe(styled, use_container_width=True, hide_index=True)
 
     with tab2:
         # Highest scoring game (single side)
