@@ -46,16 +46,8 @@ def render(conn) -> None:
     provider = provider_map.get(selected_season, "unknown")
     num_teams = num_teams_map.get(selected_season, "?")
 
-    # IDP toggle — only shown when season has defensive players
     has_idp = season_has_idp(season_roster, selected_season)
-    exclude_def = False
-    if has_idp:
-        exclude_def = st.checkbox(
-            "Exclude defensive players from scoring (IDP season)",
-            value=True,
-            help="This season used Individual Defensive Players (IDP). "
-                 "Excluding them makes scores comparable to later offensive-only seasons.",
-        )
+    exclude_def = bool(st.session_state.get("exclude_defensive", False)) and has_idp
 
     # --- Section 1: Season Summary ---
     st.subheader("Season Summary")

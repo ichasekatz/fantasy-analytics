@@ -126,7 +126,8 @@ with st.sidebar:
     st.session_state["selected_league_id"] = league_options[selected_league_label]
 
     # Format filter — only relevant when viewing All Leagues
-    if league_options[selected_league_label] is None:
+    _selected_lid = league_options[selected_league_label]
+    if _selected_lid is None:
         fmt_label = st.radio(
             "Format",
             ["Redraft Only", "Dynasty Only", "All Formats"],
@@ -138,6 +139,19 @@ with st.sidebar:
         st.session_state["league_format"] = fmt_map[fmt_label]
     else:
         st.session_state["league_format"] = "all"
+
+    # IDP toggle — available for Bigwells or All Leagues (redraft/all formats)
+    _show_idp = _selected_lid is None or "bigwell" in selected_league_label.lower()
+    _fmt = st.session_state.get("league_format", "redraft_only")
+    if _show_idp and _fmt != "dynasty_only":
+        st.session_state["exclude_defensive"] = st.checkbox(
+            "Exclude defensive players (IDP)",
+            value=st.session_state.get("exclude_defensive", False),
+            help="2019 season had individual defensive players (IDP) on ESPN. "
+                 "Excluding them makes scores comparable to later Sleeper seasons.",
+        )
+    else:
+        st.session_state["exclude_defensive"] = False
 
     st.divider()
 
