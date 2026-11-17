@@ -67,8 +67,13 @@ def render(conn) -> None:
     with col3:
         w_consistency = st.slider("Consistency weight", 0, 10, 1, key="dr_w_consist")
         w_playoff = st.slider("Playoff appearances weight", 0, 10, 1, key="dr_w_playoff")
+    st.caption(
+        "⚠️ **Schedule Difficulty:** higher weight rewards managers who faced harder opponents "
+        "(higher opp avg pts). Teams with easier schedules receive lower composite scores."
+    )
+    w_sos = st.slider("Schedule Difficulty weight", 0, 10, 0, key="dr_w_sos")
 
-    total_weight = w_wins + w_pf + w_allplay + w_luck + w_consistency + w_playoff
+    total_weight = w_wins + w_pf + w_allplay + w_luck + w_consistency + w_playoff + w_sos
     if total_weight == 0:
         st.warning("All weights are 0 — set at least one above 0.")
         return
@@ -76,7 +81,7 @@ def render(conn) -> None:
     st.divider()
 
     with st.spinner("Computing rankings…"):
-        rankings = _compute_composite(view_df, matchups_df, lid, w_wins, w_pf, w_allplay, w_luck, w_consistency, w_playoff)
+        rankings = _compute_composite(view_df, matchups_df, lid, w_wins, w_pf, w_allplay, w_luck, w_consistency, w_playoff, w_sos)
 
     if rankings.empty:
         st.info("Could not compute rankings.")
@@ -94,20 +99,20 @@ def render(conn) -> None:
     display_cols = [c for c in [
         "Rank", "Manager", "Composite Score",
         "Win%", "Points For", "Avg PF Rank", "All-Play%", "Expected Wins", "Consistency", "Playoff Apps",
-        "Seasons"
+        "Opp Avg Pts", "Seasons"
     ] if c in rankings.columns]
 
     styled = rankings[display_cols].copy()
     for col in ["Win%", "All-Play%"]:
         if col in styled.columns:
             styled[col] = styled[col].round(3)
-    for col in ["Points For", "Expected Wins", "Composite Score"]:
+    for col in ["Points For", "Expected Wins", "Composite Score", "Opp Avg Pts"]:
         if col in styled.columns:
             styled[col] = styled[col].round(1)
 
     styled_df = style_dataframe(
         styled,
-        higher_is_better=["Composite Score", "Win%", "Points For", "All-Play%", "Expected Wins", "Consistency", "Playoff Apps", "Seasons"],
+        higher_is_better=["Composite Score", "Win%", "Points For", "All-Play%", "Expected Wins", "Consistency", "Playoff Apps", "Opp Avg Pts", "Seasons"],
         lower_is_better=["Avg PF Rank"],
     )
     st.dataframe(styled_df, use_container_width=True, hide_index=True)
@@ -142,6 +147,7 @@ Each metric is **normalized to 0–1** (min-max), then multiplied by its weight,
 | Expected Wins | {w_luck} | Average simulated wins across all schedules |
 | Consistency | {w_consistency} | Inverse of weekly score std deviation |
 | Playoff Apps | {w_playoff} | Seasons with playoff appearance |
+| Schedule Difficulty | {w_sos} | Avg opponent pts/week — harder schedule = higher score. Teams with easier schedules receive **lower** composite scores when this weight is non-zero. |
 
 **Note:** Highly correlated metrics (Win% and All-Play%) effectively double-count similar information.
         """)
@@ -157,6 +163,7 @@ def _compute_composite(
     w_luck: int,
     w_consistency: int,
     w_playoff: int,
+    w_sos: int = 0,
 ) -> pd.DataFrame:
     career = career_standings(view_df, league_id=lid)
     if career.empty:
@@ -264,6 +271,18 @@ def _compute_composite(
         pa = {}
     metrics["Playoff Apps"] = metrics["Manager"].map(pa).fillna(0)
 
+    # Strength of schedule: avg opponent pts per week (harder opp = higher = better for manager)
+    opp_scores = []
+    for _, row in view_df.iterrows():
+        opp_scores.append({"owner": row["team_a_owner"], "opp_pts": row["points_b"]})
+        opp_scores.append({"owner": row["team_b_owner"], "opp_pts": row["points_a"]})
+    opp_df = pd.DataFrame(opp_scores).dropna(subset=["opp_pts"])
+    if not opp_df.empty:
+        sos_map = opp_df.groupby("owner")["opp_pts"].mean().to_dict()
+        metrics["Opp Avg Pts"] = metrics["Manager"].map(sos_map).fillna(0)
+    else:
+        metrics["Opp Avg Pts"] = 0.0
+
     # Normalize and compute composite
     metric_cols = []
     weight_map = {
@@ -273,6 +292,7 @@ def _compute_composite(
         "Expected Wins": w_luck,
         "Consistency": w_consistency,
         "Playoff Apps": w_playoff,
+        "Opp Avg Pts": w_sos,
     }
 
     score = pd.Series(0.0, index=metrics.index)
