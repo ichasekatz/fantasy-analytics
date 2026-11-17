@@ -92,7 +92,7 @@ def rivalry_stats(
     meetings_raw = df[mask].dropna(subset=["points_a", "points_b"]).sort_values(["season", "week"])
 
     if meetings_raw.empty:
-        return {"meetings": [], "all_time_record": (0, 0, 0)}
+        return {"meetings": [], "all_time_record": (0, 0, 0), "total_meetings": 0}
 
     meetings = []
     a_wins = a_losses = ties = 0
