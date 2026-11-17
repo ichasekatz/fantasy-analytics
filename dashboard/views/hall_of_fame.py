@@ -142,8 +142,12 @@ def _render_season_timeline(conn, matchups_df: pd.DataFrame) -> None:
             c1, c2, c3 = st.columns(3)
             c1.metric("Champion", champion)
             if top_scorer is not None:
-                c2.metric("Best Single Game", f"{top_scorer['pts']:.1f} pts")
-                c3.metric("Best Scorer", str(top_scorer["owner"]))
+                try:
+                    pts_val = float(top_scorer["pts"])
+                    c2.metric("Best Single Game", f"{pts_val:.1f} pts")
+                    c3.metric("Best Scorer", str(top_scorer["owner"]))
+                except (KeyError, TypeError, ValueError):
+                    pass
 
             lid: str | None = st.session_state.get("selected_league_id")
             standings = season_standings(matchups_df, s, lid)
