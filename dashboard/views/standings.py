@@ -153,9 +153,21 @@ def render(conn) -> None:
     provider_map = dict(zip(seasons_df["season"], seasons_df["provider"], strict=False))
     season_labels = ["All Time"] + [f"{s} ({provider_map.get(s, '?')})" for s in seasons]
 
-    selected_label = st.selectbox("Season", season_labels, index=len(season_labels) - 1)
+    col_season, col_minsea = st.columns([2, 1])
+    with col_season:
+        selected_label = st.selectbox("Season", season_labels, index=len(season_labels) - 1)
     all_time = selected_label == "All Time"
     selected_season = None if all_time else seasons[season_labels.index(selected_label) - 1]
+
+    min_seasons_filter = 1
+    if all_time and seasons:
+        with col_minsea:
+            min_seasons_filter = st.slider(
+                "Min seasons (Avg Rank)",
+                min_value=1, max_value=len(seasons), value=1,
+                key="avg_rank_min_seasons_top",
+                help="Hides managers with fewer seasons from Avg Season Rank view.",
+            )
 
     tab_labels = ["Regular Season Standings", "All-Play Standings"]
     if all_time:
@@ -258,14 +270,7 @@ def render(conn) -> None:
                 if "avg_pa_pct_rank" in rank_df.columns and "avg_pf_pct_rank" in rank_df.columns:
                     rank_df["pa_minus_pf"] = (rank_df["avg_pa_pct_rank"] - rank_df["avg_pf_pct_rank"]).round(3)
 
-                max_seasons = int(rank_df["seasons"].max()) if "seasons" in rank_df.columns else 1
-                min_seasons = st.slider(
-                    "Min seasons played (display filter)",
-                    min_value=1, max_value=max_seasons, value=1,
-                    key="avg_rank_min_seasons",
-                    help="Hides managers with fewer seasons from view — underlying data unchanged.",
-                )
-                display_df = rank_df[rank_df["seasons"] >= min_seasons].copy() if "seasons" in rank_df.columns else rank_df.copy()
+                display_df = rank_df[rank_df["seasons"] >= min_seasons_filter].copy() if "seasons" in rank_df.columns else rank_df.copy()
                 display_df.insert(0, "Rank", range(1, len(display_df) + 1))
 
                 cols_to_show = ["Rank", "owner", "avg_finish", "best_finish", "worst_finish",
