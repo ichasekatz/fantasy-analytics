@@ -12,8 +12,55 @@ sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
 
 import pandas as pd
 
+import numpy as np
+
 from fantasy.analytics.standings import all_play_records, career_standings, season_standings
 from utils import apply_league_filter
+
+
+def _avg_season_rank(matchups_df: pd.DataFrame, lid: str | None) -> pd.DataFrame:
+    """Return each manager's average finish rank per season (normalized)."""
+    seasons = sorted(matchups_df["season"].dropna().unique())
+    rows = []
+    for s in seasons:
+        st_df = season_standings(matchups_df, int(s), lid)
+        if st_df.empty:
+            continue
+        n = len(st_df)
+        for rank, (_, row) in enumerate(st_df.iterrows(), start=1):
+            # Percentile rank: 1.0 = best, 0.0 = worst (normalized for field size)
+            pct_rank = 1.0 - (rank - 1) / max(n - 1, 1)
+            rows.append({
+                "owner": row["owner"],
+                "season": int(s),
+                "finish": rank,
+                "field_size": n,
+                "pct_rank": pct_rank,
+                "h2h_win_pct": row.get("h2h_win_pct", float("nan")),
+                "total_wins": row.get("total_wins", 0),
+                "points_for": row.get("points_for", 0),
+            })
+    if not rows:
+        return pd.DataFrame()
+
+    df = pd.DataFrame(rows)
+    summary = (
+        df.groupby("owner")
+        .agg(
+            seasons=("season", "count"),
+            avg_finish=("finish", "mean"),
+            best_finish=("finish", "min"),
+            worst_finish=("finish", "max"),
+            avg_pct_rank=("pct_rank", "mean"),
+            avg_win_pct=("h2h_win_pct", "mean"),
+            season_list=("season", lambda x: ", ".join(str(s) for s in sorted(x))),
+        )
+        .reset_index()
+    )
+    summary["avg_finish"] = summary["avg_finish"].round(2)
+    summary["avg_pct_rank"] = summary["avg_pct_rank"].round(3)
+    summary["avg_win_pct"] = summary["avg_win_pct"].round(3)
+    return summary.sort_values("avg_pct_rank", ascending=False).reset_index(drop=True)
 
 
 def _schedule_justice(matchups_df: pd.DataFrame, season: int, lid: str | None) -> None:
@@ -99,7 +146,12 @@ def render(conn) -> None:
     all_time = selected_label == "All Time"
     selected_season = None if all_time else seasons[season_labels.index(selected_label) - 1]
 
-    tab1, tab2 = st.tabs(["Regular Season Standings", "All-Play Standings"])
+    tab_labels = ["Regular Season Standings", "All-Play Standings"]
+    if all_time:
+        tab_labels.append("Avg Season Rank")
+    tabs = st.tabs(tab_labels)
+    tab1, tab2 = tabs[0], tabs[1]
+    tab3 = tabs[2] if all_time else None
 
     with tab1:
         if all_time:
@@ -163,6 +215,30 @@ def render(conn) -> None:
                     "All-play win% = how often each team would win if they played every other team each week. "
                     "Removes schedule luck."
                 )
+
+    if all_time and tab3 is not None:
+        with tab3:
+            st.caption(
+                "Average finish position per season, normalized across different field sizes. "
+                "Avg Pct Rank: 1.0 = finished 1st every season, 0.0 = last every season."
+            )
+            rank_df = _avg_season_rank(matchups_df, lid)
+            if rank_df.empty:
+                st.info("No data available.")
+            else:
+                rank_df.insert(0, "Rank", range(1, len(rank_df) + 1))
+                out = rank_df[["Rank", "owner", "avg_finish", "best_finish", "worst_finish",
+                                "avg_pct_rank", "avg_win_pct", "seasons", "season_list"]].rename(columns={
+                    "owner": "Manager",
+                    "avg_finish": "Avg Finish",
+                    "best_finish": "Best",
+                    "worst_finish": "Worst",
+                    "avg_pct_rank": "Avg Pct Rank",
+                    "avg_win_pct": "Avg Win%",
+                    "seasons": "Seasons Played",
+                    "season_list": "Seasons",
+                })
+                st.dataframe(out, use_container_width=True, hide_index=True)
 
     if not all_time:
         _schedule_justice(matchups_df, selected_season, lid)
