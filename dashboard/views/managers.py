@@ -78,8 +78,8 @@ def render(conn) -> None:
             row = owner_career.iloc[0]
             c1, c2, c3, c4, c5 = st.columns(5)
             c1.metric("Seasons Played", int(row["seasons_played"]))
-            c2.metric("Career W-L", f"{int(row['wins'])}-{int(row['losses'])}")
-            c3.metric("Win%", f"{row['win_pct']:.3f}")
+            c2.metric("Career W-L", f"{int(row['h2h_wins'])}-{int(row['h2h_losses'])}")
+            c3.metric("Win%", f"{row['h2h_win_pct']:.3f}")
             c4.metric("Points For", f"{row['points_for']:.1f}")
             c5.metric("Avg PF/Game", f"{row['avg_pf']:.1f}")
         else:
