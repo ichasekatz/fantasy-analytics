@@ -114,13 +114,12 @@ def _render_historical(matchups_df: pd.DataFrame, seasons: list, lid: str | None
         st.info("No data available.")
         return
 
-    combined = pd.concat(all_rows, ignore_index=True)
+    all_combined = pd.concat(all_rows, ignore_index=True)
 
     seasons_sel = st.multiselect("Seasons", options=[str(s) for s in seasons], default=[str(seasons[0])], key="po_hist_seasons")
-    if seasons_sel:
-        combined = combined[combined["season"].isin([int(s) for s in seasons_sel])]
+    view = all_combined[all_combined["season"].isin([int(s) for s in seasons_sel])] if seasons_sel else all_combined
 
-    display = combined[["season", "owner", "actual_wins", "all_play_wins", "all_play_pct", "made_playoffs", "deserved"]].rename(columns={
+    display = view[["season", "owner", "actual_wins", "all_play_wins", "all_play_pct", "made_playoffs", "deserved"]].rename(columns={
         "season": "Season",
         "owner": "Manager",
         "actual_wins": "H2H Wins",
@@ -133,7 +132,7 @@ def _render_historical(matchups_df: pd.DataFrame, seasons: list, lid: str | None
 
     if len(seasons_sel) == 1:
         season_int = int(seasons_sel[0])
-        season_df = combined[combined["season"] == season_int]
+        season_df = view[view["season"] == season_int]
         fig = px.scatter(
             season_df,
             x="all_play_pct",
@@ -147,10 +146,11 @@ def _render_historical(matchups_df: pd.DataFrame, seasons: list, lid: str | None
         fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
         st.plotly_chart(fig, use_container_width=True)
 
-    # Only show snubs/lucky for seasons that actually have playoff data
-    seasons_with_playoffs = combined.groupby("season")["made_playoffs"].any()
+    # Snubs/lucky computed from ALL seasons' data (not filtered by multiselect)
+    # so they persist even when current in-progress season is selected
+    seasons_with_playoffs = all_combined.groupby("season")["made_playoffs"].any()
     finished_seasons = seasons_with_playoffs[seasons_with_playoffs].index
-    finished = combined[combined["season"].isin(finished_seasons)]
+    finished = all_combined[all_combined["season"].isin(finished_seasons)]
 
     snubs = finished[(finished["made_playoffs"] == False) & (~finished["deserved"])]
     lucky_in = finished[(finished["made_playoffs"] == True) & (~finished["deserved"])]
