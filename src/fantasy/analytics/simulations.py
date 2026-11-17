@@ -260,23 +260,23 @@ def monte_carlo_standings(
     for _ in range(n_sims):
         sim_wins: dict[str, int] = {o: locked_wins[o] for o in owners}
 
-        # Simulate future weeks: sample scores + random pairings
-        for week in future_weeks:
-            week_scores = [(o, float(rng.choice(score_arrays[o]))) for o in owners]
-            shuffled = rng.permutation(len(owners))
-            for i in range(0, len(shuffled) - 1, 2):
-                ia, ib = int(shuffled[i]), int(shuffled[i + 1])
-                oa, sa = week_scores[ia]
-                ob, sb = week_scores[ib]
-                if sa > sb:
-                    sim_wins[oa] += 1
-                elif sb > sa:
-                    sim_wins[ob] += 1
-
-        # For full-season alternate-universe mode, also randomise locked weeks
         if through_week is None:
+            # Alternate-universe: actual scores, random pairings for every week
             for week in all_weeks:
                 week_scores = [(o, scores.get(o, {}).get(week, 0.0)) for o in owners]
+                shuffled = rng.permutation(len(owners))
+                for i in range(0, len(shuffled) - 1, 2):
+                    ia, ib = int(shuffled[i]), int(shuffled[i + 1])
+                    oa, sa = week_scores[ia]
+                    ob, sb = week_scores[ib]
+                    if sa > sb:
+                        sim_wins[oa] += 1
+                    elif sb > sa:
+                        sim_wins[ob] += 1
+        else:
+            # Predictive: future weeks use sampled scores + random pairings
+            for week in future_weeks:
+                week_scores = [(o, float(rng.choice(score_arrays[o]))) for o in owners]
                 shuffled = rng.permutation(len(owners))
                 for i in range(0, len(shuffled) - 1, 2):
                     ia, ib = int(shuffled[i]), int(shuffled[i + 1])
