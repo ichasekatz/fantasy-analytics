@@ -35,6 +35,21 @@ def render(conn) -> None:
         st.info("No draft data available.")
         return
 
+    # Per-page IDP toggle — filters defensive players from draft data only
+    _def_positions = {"DL", "LB", "DB", "DE", "DT", "CB", "S", "SS", "FS", "IDP"}
+    if "position" in draft_df.columns:
+        _has_idp = draft_df["position"].isin(_def_positions).any()
+        if _has_idp:
+            _exclude_idp_draft = st.checkbox(
+                "Exclude defensive players (IDP) from draft analysis",
+                value=st.session_state.get("exclude_defensive", False),
+                key="dna_exclude_idp",
+                help="2019 season had individual defensive players. Exclude for cleaner position/VORP analysis.",
+            )
+            if _exclude_idp_draft:
+                draft_df = draft_df[~draft_df["position"].isin(_def_positions)]
+                rosters_df = rosters_df[~rosters_df["position"].isin(_def_positions)] if "position" in rosters_df.columns else rosters_df
+
     seasons = sorted(draft_df["season"].unique())
 
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
@@ -118,7 +133,6 @@ def _render_position_tendencies(draft_df: pd.DataFrame) -> None:
 
         if sel_round == "Average (all rounds)":
             st.subheader("Position Distribution by Manager (Avg per Draft)")
-            # Average picks per position per manager across all seasons
             pos_pivot = (
                 draft_df.groupby(["owner_name", "season", "position"])
                 .size()
@@ -129,9 +143,27 @@ def _render_position_tendencies(draft_df: pd.DataFrame) -> None:
                 .pivot(index="owner_name", columns="position", values="avg_picks")
                 .fillna(0)
                 .round(1)
-                .reset_index()
             )
-            st.dataframe(pos_pivot, use_container_width=True, hide_index=True)
+            if not pos_pivot.empty:
+                _heat = go.Figure(data=go.Heatmap(
+                    z=pos_pivot.values,
+                    x=list(pos_pivot.columns),
+                    y=list(pos_pivot.index),
+                    colorscale="YlOrRd",
+                    text=pos_pivot.values,
+                    texttemplate="%{text:.1f}",
+                    showscale=True,
+                    hovertemplate="Manager: %{y}<br>Position: %{x}<br>Avg picks: %{z:.1f}<extra></extra>",
+                ))
+                _heat.update_layout(
+                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                    height=max(350, len(pos_pivot) * 32 + 80),
+                    xaxis_title="Position", yaxis_title="Manager",
+                    yaxis={"autorange": "reversed"},
+                )
+                st.plotly_chart(_heat, use_container_width=True)
+            else:
+                st.info("No data.")
         else:
             rnd = int(sel_round.split()[-1])
             st.subheader(f"Round {rnd} Position Distribution by Manager")
@@ -144,9 +176,25 @@ def _render_position_tendencies(draft_df: pd.DataFrame) -> None:
                     .pivot(index="owner_name", columns="position", values="picks")
                     .fillna(0)
                     .astype(int)
-                    .reset_index()
                 )
-                st.dataframe(rnd_pivot, use_container_width=True, hide_index=True)
+                if not rnd_pivot.empty:
+                    _rnd_heat = go.Figure(data=go.Heatmap(
+                        z=rnd_pivot.values,
+                        x=list(rnd_pivot.columns),
+                        y=list(rnd_pivot.index),
+                        colorscale="YlOrRd",
+                        text=rnd_pivot.values,
+                        texttemplate="%{text}",
+                        showscale=True,
+                        hovertemplate="Manager: %{y}<br>Position: %{x}<br>Picks: %{z}<extra></extra>",
+                    ))
+                    _rnd_heat.update_layout(
+                        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                        height=max(350, len(rnd_pivot) * 32 + 80),
+                        xaxis_title="Position", yaxis_title="Manager",
+                        yaxis={"autorange": "reversed"},
+                    )
+                    st.plotly_chart(_rnd_heat, use_container_width=True)
             else:
                 st.info(f"No picks found in round {rnd}.")
 

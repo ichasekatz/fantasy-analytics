@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
 
 from fantasy.analytics.luck import expected_wins
 from fantasy.analytics.standings import all_play_records, season_standings
-from utils import apply_league_filter
+from utils import apply_league_filter, style_dataframe
 
 
 def _recent_form(matchups_df: pd.DataFrame, season: int, n_weeks: int = 4) -> pd.DataFrame:
@@ -145,11 +145,16 @@ def _render_season_rankings(matchups_df: pd.DataFrame, season: int) -> None:
         "recent_avg": "Recent Avg (4wk)",
     })
     display["Total PF"] = display["Total PF"].round(1)
-    display["All-Play %"] = display["All-Play %"].apply(lambda x: f"{x:.1%}" if pd.notna(x) else "—")
-    display["Exp Wins"] = display["Exp Wins"].apply(lambda x: f"{x:.1f}" if pd.notna(x) else "—")
-    display["Recent Avg (4wk)"] = display["Recent Avg (4wk)"].apply(lambda x: f"{x:.1f}" if pd.notna(x) else "—")
+    display["All-Play %"] = display["All-Play %"].round(3)
+    display["Exp Wins"] = display["Exp Wins"].round(1)
+    display["Recent Avg (4wk)"] = display["Recent Avg (4wk)"].round(1)
 
-    st.dataframe(display, use_container_width=True, hide_index=True)
+    styled = style_dataframe(
+        display,
+        higher_is_better=["Total PF", "All-Play %", "Exp Wins", "Recent Avg (4wk)"],
+        lower_is_better=["🏅 Rank", "Pts Rank", "All-Play Rank", "xWins Rank", "Form Rank"],
+    )
+    st.dataframe(styled, use_container_width=True, hide_index=True)
 
     st.divider()
 

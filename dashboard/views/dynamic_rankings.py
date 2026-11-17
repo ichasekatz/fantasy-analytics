@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
 
 from fantasy.analytics.luck import luck_metrics
 from fantasy.analytics.standings import career_standings, season_standings
-from utils import apply_league_filter
+from utils import apply_league_filter, style_dataframe
 
 try:
     from style import inject_css
@@ -100,15 +100,20 @@ def render(conn) -> None:
     styled = rankings[display_cols].copy()
     for col in ["Win%", "All-Play%"]:
         if col in styled.columns:
-            styled[col] = styled[col].apply(lambda x: f"{x:.3f}" if pd.notna(x) else "—")
+            styled[col] = styled[col].round(3)
     for col in ["Points For", "Expected Wins", "Composite Score"]:
         if col in styled.columns:
-            styled[col] = styled[col].apply(lambda x: f"{x:.1f}" if pd.notna(x) else "—")
+            styled[col] = styled[col].round(1)
 
-    st.dataframe(styled, use_container_width=True, hide_index=True)
+    styled_df = style_dataframe(
+        styled,
+        higher_is_better=["Composite Score", "Win%", "Points For", "All-Play%", "Expected Wins", "Consistency", "Playoff Apps", "Seasons"],
+        lower_is_better=["Rank"],
+    )
+    st.dataframe(styled_df, use_container_width=True, hide_index=True)
 
     fig = px.bar(
-        rankings.head(15).sort_values("Composite Score"),
+        rankings.sort_values("Composite Score"),
         x="Composite Score",
         y="Manager",
         orientation="h",
@@ -120,7 +125,8 @@ def render(conn) -> None:
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         coloraxis_showscale=False,
-        height=400,
+        height=max(350, len(rankings) * 32),
+        yaxis={"categoryorder": "total ascending"},
     )
     st.plotly_chart(fig, use_container_width=True)
 
