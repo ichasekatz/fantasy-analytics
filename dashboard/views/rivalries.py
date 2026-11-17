@@ -94,7 +94,7 @@ def _render_top_rivalries(matchups_df: pd.DataFrame, filtered_owners: list[str] 
             "total_games": "Games",
         }
     )
-    styled_out = style_dataframe(out, higher_is_better=["Games", "Intensity"], lower_is_better=["Avg Margin"])
+    styled_out = style_dataframe(out, higher_is_better=["Games", "Intensity"], lower_is_better=["Avg Margin", "Closest"])
     st.dataframe(styled_out, use_container_width=True, hide_index=True)
 
     # Bar chart of top 10
