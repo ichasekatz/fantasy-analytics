@@ -147,9 +147,13 @@ def _render_historical(matchups_df: pd.DataFrame, seasons: list, lid: str | None
         fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
         st.plotly_chart(fig, use_container_width=True)
 
-    # Summary: undeserved playoff appearances / snubs
-    snubs = combined[combined["made_playoffs"] == False][~combined["deserved"]]
-    lucky_in = combined[combined["made_playoffs"] == True][~combined["deserved"]]
+    # Only show snubs/lucky for seasons that actually have playoff data
+    seasons_with_playoffs = combined.groupby("season")["made_playoffs"].any()
+    finished_seasons = seasons_with_playoffs[seasons_with_playoffs].index
+    finished = combined[combined["season"].isin(finished_seasons)]
+
+    snubs = finished[(finished["made_playoffs"] == False) & (~finished["deserved"])]
+    lucky_in = finished[(finished["made_playoffs"] == True) & (~finished["deserved"])]
 
     if not snubs.empty:
         st.error(f"Snubbed teams (should've made playoffs): {', '.join(snubs['owner'].unique())}")
@@ -211,9 +215,13 @@ def _render_simulation(matchups_df: pd.DataFrame, seasons: list, lid: str | None
     fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
     st.plotly_chart(fig, use_container_width=True)
 
-    snubbed = mc[(mc["actual_made_playoffs"] == False) & (mc["playoff_probability"] >= 0.5)]
-    lucky = mc[(mc["actual_made_playoffs"] == True) & (mc["playoff_probability"] < 0.5)]
-    if not snubbed.empty:
-        st.error(f"💔 Statistically deserved playoffs but missed: {', '.join(snubbed['owner'].tolist())}")
-    if not lucky.empty:
-        st.warning(f"😮 Made playoffs despite <50% simulated odds: {', '.join(lucky['owner'].tolist())}")
+    season_has_playoffs = len(playoff_owners) > 0
+    if season_has_playoffs:
+        snubbed = mc[(mc["actual_made_playoffs"] == False) & (mc["playoff_probability"] >= 0.5)]
+        lucky = mc[(mc["actual_made_playoffs"] == True) & (mc["playoff_probability"] < 0.5)]
+        if not snubbed.empty:
+            st.error(f"💔 Statistically deserved playoffs but missed: {', '.join(snubbed['owner'].tolist())}")
+        if not lucky.empty:
+            st.warning(f"😮 Made playoffs despite <50% simulated odds: {', '.join(lucky['owner'].tolist())}")
+    else:
+        st.info("Season still in progress — playoff verdicts available after playoffs begin.")
