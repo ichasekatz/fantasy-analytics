@@ -27,9 +27,9 @@ def _avg_season_rank(matchups_df: pd.DataFrame, lid: str | None) -> pd.DataFrame
         if st_df.empty:
             continue
         n = len(st_df)
-        # Rank PF descending (rank 1 = highest scorer) and PA ascending (rank 1 = fewest against)
+        # Rank PF descending (rank 1 = highest scorer) and PA descending (rank 1 = most points against)
         pf_ranks = st_df["points_for"].fillna(0).rank(ascending=False, method="min").astype(int)
-        pa_ranks = st_df["points_against"].fillna(0).rank(ascending=True, method="min").astype(int)
+        pa_ranks = st_df["points_against"].fillna(0).rank(ascending=False, method="min").astype(int)
         for rank, (idx, row) in enumerate(st_df.iterrows(), start=1):
             # Percentile rank: 1.0 = best, 0.0 = worst (normalized for field size)
             pct_rank = 1.0 - (rank - 1) / max(n - 1, 1)
@@ -256,10 +256,9 @@ def render(conn) -> None:
             if rank_df.empty:
                 st.info("No data available.")
             else:
-                # PA Rank - PF Rank: positive = better at limiting pts than scoring (defensive),
-                # negative = better scorer than defender, ~0 = balanced
+                # PF Rank - PA Rank: positive = higher scorer than you give up points (offensive)
                 if "avg_pa_pct_rank" in rank_df.columns and "avg_pf_pct_rank" in rank_df.columns:
-                    rank_df["pa_minus_pf"] = (rank_df["avg_pa_pct_rank"] - rank_df["avg_pf_pct_rank"]).round(3)
+                    rank_df["pa_minus_pf"] = (rank_df["avg_pf_pct_rank"] - rank_df["avg_pa_pct_rank"]).round(3)
 
                 display_df = rank_df[rank_df["seasons"] >= min_seasons_filter].copy() if "seasons" in rank_df.columns else rank_df.copy()
                 display_df.insert(0, "Rank", range(1, len(display_df) + 1))
@@ -275,7 +274,7 @@ def render(conn) -> None:
                     "avg_win_pct": "Avg Win%",
                     "seasons": "Seasons Played",
                     "season_list": "Seasons",
-                    "pa_minus_pf": "PA Rank − PF Rank",
+                    "pa_minus_pf": "PF Rank − PA Rank",
                 }
                 if "avg_pf_pct_rank" in display_df.columns:
                     cols_to_show.append("avg_pf_pct_rank")
@@ -289,11 +288,11 @@ def render(conn) -> None:
                 out = display_df[[c for c in cols_to_show if c in display_df.columns]].rename(columns=rename_map)
                 styled = style_dataframe(
                     out,
-                    higher_is_better=["Avg Pct Rank", "Avg Win%", "Avg PF Rank", "Avg PA Rank", "Seasons Played"],
-                    lower_is_better=["Avg Finish", "Best", "Worst"],
+                    higher_is_better=["Avg Pct Rank", "Avg Win%", "Avg PF Rank", "Seasons Played"],
+                    lower_is_better=["Avg Finish", "Best", "Worst", "Avg PA Rank"],
                 )
                 st.dataframe(styled, use_container_width=True, hide_index=True)
-                st.caption("PA Rank − PF Rank: positive = better at limiting pts than scoring; negative = better scorer than defender.")
+                st.caption("PF Rank − PA Rank: positive = higher scorer than you give up points (offensive); negative = more PA than PF rank (tougher schedule / lower scorer). Avg PA Rank: lower = fewer points against (better).")
 
     if not all_time:
         _schedule_justice(matchups_df, selected_season, lid)

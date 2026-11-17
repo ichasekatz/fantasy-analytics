@@ -81,6 +81,9 @@ def render(conn) -> None:
 
     with tab1:
         career = career_standings(matchups_df)
+        min_seasons_filter = st.session_state.get("min_seasons_played", 1)
+        if "seasons_played" in career.columns and min_seasons_filter > 1:
+            career = career[career["seasons_played"] >= min_seasons_filter].reset_index(drop=True)
         if career.empty:
             st.info("No career data available.")
         else:
@@ -113,9 +116,12 @@ def render(conn) -> None:
         st.caption(
             "Average finish per season, normalized for field size. "
             "Avg Pct Rank: 1.0 = finished 1st every year, 0.0 = last every year. "
-            "Avg PF/PA Rank: 1.0 = best scoring/fewest points against every year."
+            "Avg PF Rank: 1.0 = highest scorer every year. Avg PA Rank: lower value = fewer points against (better)."
         )
         rank_df = _avg_season_rank(matchups_df, lid)
+        min_seasons_filter = st.session_state.get("min_seasons_played", 1)
+        if "seasons" in rank_df.columns and min_seasons_filter > 1:
+            rank_df = rank_df[rank_df["seasons"] >= min_seasons_filter].reset_index(drop=True)
         if rank_df.empty:
             st.info("No data.")
         else:
@@ -138,8 +144,8 @@ def render(conn) -> None:
             out = rank_df[[c for c in cols_to_show if c in rank_df.columns]].rename(columns=rename_map)
             styled = style_dataframe(
                 out,
-                higher_is_better=["Avg Pct Rank", "Avg Win%", "Avg PF Rank", "Avg PA Rank", "Seasons"],
-                lower_is_better=["Avg Finish", "Best", "Worst"],
+                higher_is_better=["Avg Pct Rank", "Avg Win%", "Avg PF Rank", "Seasons"],
+                lower_is_better=["Avg Finish", "Best", "Worst", "Avg PA Rank"],
             )
             st.dataframe(styled, use_container_width=True, hide_index=True)
 

@@ -233,7 +233,7 @@ def _render_franchise_histories(conn, matchups_df: pd.DataFrame) -> None:
         if n < 2:
             continue
         pf_ranks = st_df["points_for"].fillna(0).rank(ascending=False, method="min").astype(int)
-        pa_ranks = st_df["points_against"].fillna(0).rank(ascending=True, method="min").astype(int)
+        pa_ranks = st_df["points_against"].fillna(0).rank(ascending=False, method="min").astype(int)
         for i, row in st_df.iterrows():
             owner = row["owner"]
             pf_pct = 1.0 - (int(pf_ranks.loc[i]) - 1) / max(n - 1, 1)
@@ -261,10 +261,13 @@ def _render_franchise_histories(conn, matchups_df: pd.DataFrame) -> None:
         })
 
     df = pd.DataFrame(rows).sort_values("W", ascending=False)
+    min_seasons_filter = st.session_state.get("min_seasons_played", 1)
+    if min_seasons_filter > 1:
+        df = df[df["Seasons"] >= min_seasons_filter].reset_index(drop=True)
     styled = style_dataframe(
         df,
-        higher_is_better=["W", "Win%", "PF", "Avg PF Rank", "Avg PA Rank", "Playoffs", "Championships", "Seasons"],
-        lower_is_better=["L"],
+        higher_is_better=["W", "Win%", "PF", "Avg PF Rank", "Playoffs", "Championships", "Seasons"],
+        lower_is_better=["L", "Avg PA Rank"],
     )
     st.dataframe(styled, use_container_width=True, hide_index=True)
 

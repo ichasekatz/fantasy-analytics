@@ -86,6 +86,9 @@ def render(conn) -> None:
     if high_corr:
         st.warning(f"High correlation detected between: {', '.join(high_corr)}. These metrics may overlap.")
 
+    min_seasons_filter = st.session_state.get("min_seasons_played", 1)
+    if min_seasons_filter > 1 and "Seasons" in rankings.columns:
+        rankings = rankings[rankings["Seasons"] >= min_seasons_filter].reset_index(drop=True)
     rankings.insert(0, "Rank", range(1, len(rankings) + 1))
 
     display_cols = [c for c in [

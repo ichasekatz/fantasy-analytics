@@ -78,6 +78,14 @@ def render(conn) -> None:
             "Points left on bench = how many points were sitting unused."
         )
         summary = lineup_efficiency_summary(season_rosters, selected_season, league_id)
+        if selected_season is None:
+            min_seasons_filter = st.session_state.get("min_seasons_played", 1)
+            if min_seasons_filter > 1 and "seasons_played" in summary.columns:
+                summary = summary[summary["seasons_played"] >= min_seasons_filter].reset_index(drop=True)
+            elif min_seasons_filter > 1:
+                seasons_per_owner = season_rosters.groupby("owner")["season"].nunique()
+                keep = seasons_per_owner[seasons_per_owner >= min_seasons_filter].index
+                summary = summary[summary["owner"].isin(keep)].reset_index(drop=True)
         if summary.empty:
             st.info("No lineup data available.")
         else:

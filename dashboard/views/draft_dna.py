@@ -186,6 +186,9 @@ def _render_draft_grades(
         agg_cols["season"] = "count"
         career = grades.groupby("owner_name").agg(agg_cols).reset_index()
         career = career.rename(columns={"season": "Drafts"})
+        min_seasons_filter = st.session_state.get("min_seasons_played", 1)
+        if min_seasons_filter > 1 and "Drafts" in career.columns:
+            career = career[career["Drafts"] >= min_seasons_filter]
         career = career.sort_values("avg_pick_vorp", ascending=False).reset_index(drop=True)
         career.insert(0, "Rank", range(1, len(career) + 1))
         display = career.rename(columns={
