@@ -133,10 +133,23 @@ def _render_categories(career) -> None:
 
     st.divider()
     st.subheader("Franchise Cornerstones")
-    cornerstones = career[(career["total_managers"] <= 2) & (career["total_seasons"] >= 3)].sort_values("total_started_points", ascending=False).head(20)
-    _show_category(cornerstones, ["player", "position", "total_managers", "total_seasons", "total_started_points", "best_owner"],
-                   {"player": "Player", "position": "Pos", "total_managers": "Managers", "total_seasons": "Seasons", "total_started_points": "Started Pts", "best_owner": "Owner"},
-                   higher_is_better=["Seasons", "Started Pts"], lower_is_better=["Managers"])
+    st.caption(
+        "Players whose best owner scored ≥ 70% of their career fantasy points and "
+        "appeared in ≥ 3 seasons — truly built around one manager."
+    )
+    if "best_owner_points" in career.columns:
+        _cs = career[career["total_started_points"] > 0].copy()
+        _cs["loyalty_pct"] = _cs["best_owner_points"] / _cs["total_started_points"]
+        cornerstones = _cs[(_cs["loyalty_pct"] >= 0.70) & (_cs["total_seasons"] >= 3)].sort_values("total_started_points", ascending=False).head(20)
+        cornerstones["Loyalty %"] = (cornerstones["loyalty_pct"] * 100).round(1)
+        _show_category(cornerstones, ["player", "position", "total_seasons", "total_started_points", "best_owner", "Loyalty %"],
+                       {"player": "Player", "position": "Pos", "total_seasons": "Seasons", "total_started_points": "Started Pts", "best_owner": "Owner"},
+                       higher_is_better=["Seasons", "Started Pts", "Loyalty %"])
+    else:
+        cornerstones = career[(career["total_managers"] <= 2) & (career["total_seasons"] >= 3)].sort_values("total_started_points", ascending=False).head(20)
+        _show_category(cornerstones, ["player", "position", "total_managers", "total_seasons", "total_started_points", "best_owner"],
+                       {"player": "Player", "position": "Pos", "total_managers": "Managers", "total_seasons": "Seasons", "total_started_points": "Started Pts", "best_owner": "Owner"},
+                       higher_is_better=["Seasons", "Started Pts"], lower_is_better=["Managers"])
 
 
 def _show_category(df, cols, rename, higher_is_better=None, lower_is_better=None) -> None:
