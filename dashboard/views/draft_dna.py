@@ -485,4 +485,4 @@ def _render_worst_picks(draft_df: pd.DataFrame, rosters_df: pd.DataFrame, lid: s
     for col in ["VORP", "Total Pts"]:
         if col in display.columns:
             display[col] = display[col].round(1)
-    st.dataframe(style_dataframe(display, lower_is_better=["VORP", "Total Pts"]), use_container_width=True, hide_index=True)
+    st.dataframe(style_dataframe(display, higher_is_better=["Total Pts"], lower_is_better=["VORP"]), use_container_width=True, hide_index=True)
