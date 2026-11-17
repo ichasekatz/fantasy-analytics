@@ -12,6 +12,8 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).parents[1] / "src"))
 sys.path.insert(0, str(Path(__file__).parent))
 
+import duckdb
+
 from fantasy.database.db import load_from_export, reload_all_leagues
 from style import inject_css
 
@@ -23,10 +25,16 @@ _leagues_config_path = _project_root / "config" / "leagues.json"
 
 
 @st.cache_resource
-def _get_conn():
-    """Return a cached DuckDB connection, initializing from all registered leagues."""
+def _init_db():
+    """Initialize and populate the DB once; close write connection when done."""
     source = _export_path if _export_path.exists() else _original_export
-    return load_from_export(source, _db_path)
+    conn = load_from_export(source, _db_path)
+    conn.close()
+
+
+def _get_conn() -> duckdb.DuckDBPyConnection:
+    """Return a fresh read-only connection for this request (thread-safe)."""
+    return duckdb.connect(str(_db_path), read_only=True)
 
 
 def _load_league_options() -> dict[str, str | None]:
@@ -57,6 +65,7 @@ st.set_page_config(
     layout="wide",
 )
 
+_init_db()
 conn = _get_conn()
 inject_css()
 
@@ -194,4 +203,7 @@ st.session_state["_conn"] = conn
 
 page_module = pages[selected]
 mod = importlib.import_module(f"views.{page_module}")
-mod.render(conn)
+try:
+    mod.render(conn)
+finally:
+    conn.close()

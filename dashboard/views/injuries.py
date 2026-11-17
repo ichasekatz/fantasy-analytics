@@ -12,9 +12,7 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).parents[1]))
 sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
 
-from utils import apply_league_filter, style_dataframe
-
-_DEF_POSITIONS = {"DL", "LB", "DB", "DE", "DT", "CB", "S", "SS", "FS", "IDP"}
+from utils import apply_league_filter, is_defensive_position, style_dataframe
 
 _BUST_THRESHOLD = 0.40   # actual / projected < 40% = "bust" (projection mode)
 _MIN_PROJECTED = 8.0     # ignore low-projection players
@@ -179,6 +177,83 @@ def _render_draft_injuries(conn, rosters_df: pd.DataFrame) -> None:
     )
 
 
+def _render_season_injury_impact(busts: pd.DataFrame, rosters_df: pd.DataFrame) -> None:
+    """Show estimated points lost to bust/DNP events per manager per season."""
+    if busts.empty:
+        st.info("No bust events to analyze.")
+        return
+
+    rdf = rosters_df.copy()
+    for col in ("week", "season", "points"):
+        rdf[col] = pd.to_numeric(rdf[col], errors="coerce")
+    rdf = rdf.dropna(subset=["week", "season", "points"])
+    rdf["week"] = rdf["week"].astype(int)
+    rdf["season"] = rdf["season"].astype(int)
+    starters = rdf[rdf["starter"].fillna(False).astype(bool)]
+
+    # Build healthy-week avg per (player, season): exclude weeks they scored ≤ _DNP_THRESHOLD
+    healthy = starters[starters["points"] > _DNP_THRESHOLD]
+    healthy_avg = (
+        healthy.groupby(["player", "season"])["points"].mean().reset_index()
+        .rename(columns={"points": "healthy_avg"})
+    )
+
+    bust_work = busts[["owner_name", "season", "week", "player", "points"]].copy()
+    bust_work["season"] = pd.to_numeric(bust_work["season"], errors="coerce").fillna(0).astype(int)
+    bust_work["points"] = pd.to_numeric(bust_work["points"], errors="coerce").fillna(0)
+    bust_work = bust_work.merge(healthy_avg, on=["player", "season"], how="left")
+    bust_work["pts_lost"] = (bust_work["healthy_avg"] - bust_work["points"]).clip(lower=0).fillna(0)
+
+    impact = (
+        bust_work.groupby(["owner_name", "season"])
+        .agg(bust_events=("player", "count"), est_pts_lost=("pts_lost", "sum"))
+        .reset_index()
+        .rename(columns={"owner_name": "Manager"})
+    )
+    impact["est_pts_lost"] = impact["est_pts_lost"].round(1)
+    impact = impact.sort_values("est_pts_lost", ascending=False).reset_index(drop=True)
+
+    # Selector: All Seasons vs individual season
+    seasons_avail = sorted(impact["season"].unique(), reverse=True)
+    sel_s = st.selectbox("Season", ["All Seasons"] + [str(s) for s in seasons_avail], key="simp_season")
+
+    if sel_s == "All Seasons":
+        display = (
+            impact.groupby("Manager")
+            .agg(bust_events=("bust_events", "sum"), est_pts_lost=("est_pts_lost", "sum"))
+            .reset_index()
+            .sort_values("est_pts_lost", ascending=False)
+            .reset_index(drop=True)
+        )
+        display["est_pts_lost"] = display["est_pts_lost"].round(1)
+        title = "Estimated Points Lost to Injuries/Busts — All Seasons"
+    else:
+        display = impact[impact["season"] == int(sel_s)][["Manager", "bust_events", "est_pts_lost"]].copy()
+        title = f"Estimated Points Lost to Injuries/Busts — {sel_s}"
+
+    if display.empty:
+        st.info("No data for selected season.")
+        return
+
+    fig = px.bar(
+        display.sort_values("est_pts_lost", ascending=True),
+        x="est_pts_lost", y="Manager", orientation="h",
+        color="est_pts_lost",
+        color_continuous_scale=["#38A169", "#F7C59F", "#E53E3E"],
+        labels={"est_pts_lost": "Est Pts Lost"},
+        title=title,
+    )
+    fig.update_coloraxes(showscale=False)
+    fig.update_layout(height=max(300, len(display) * 35))
+    st.plotly_chart(fig, use_container_width=True)
+
+    styled = style_dataframe(
+        display.rename(columns={"bust_events": "Bust Events", "est_pts_lost": "Est Pts Lost"}),
+        lower_is_better=["Est Pts Lost"],
+    )
+    st.dataframe(styled, use_container_width=True, hide_index=True)
+
+
 def render(conn) -> None:
     st.title("🩺 Injury Impact")
 
@@ -205,11 +280,15 @@ def render(conn) -> None:
             "(No projection data in export; using 0-point threshold instead.)"
         )
 
-    has_idp_positions = "position" in rosters_df.columns and rosters_df["position"].isin(_DEF_POSITIONS).any()
+    has_idp_positions = "position" in rosters_df.columns and rosters_df["position"].apply(
+        lambda p: is_defensive_position(str(p)) if pd.notna(p) else False
+    ).any()
     if has_idp_positions:
         exclude_idp_inj = st.checkbox("Exclude defensive players (IDP)", value=False, key="inj_exclude_idp")
         if exclude_idp_inj:
-            rosters_df = rosters_df[~rosters_df["position"].isin(_DEF_POSITIONS)]
+            rosters_df = rosters_df[~rosters_df["position"].apply(
+                lambda p: is_defensive_position(str(p)) if pd.notna(p) else False
+            )]
 
     busts = _bust_events(rosters_df)
 
@@ -525,6 +604,16 @@ def render(conn) -> None:
                 st.subheader("Loss weeks with bust starters")
                 st.dataframe(loss_rows.drop(columns=["won"]).sort_values(["season", "week"]),
                              use_container_width=True, hide_index=True)
+
+        st.divider()
+
+        # --- Season injury impact: estimated points lost per manager ---
+        st.subheader("Season Injury Impact — Points Lost")
+        st.caption(
+            "For each bust/DNP week, estimated points lost = player's healthy-week avg "
+            "that season minus actual. Aggregated per manager per season."
+        )
+        _render_season_injury_impact(busts_timing, rosters_df)
 
         st.divider()
         _render_draft_injuries(conn, rosters_df)
