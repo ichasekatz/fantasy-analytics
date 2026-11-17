@@ -219,17 +219,22 @@ def apply_league_filter(df: pd.DataFrame) -> pd.DataFrame:
 # IDP / defensive position helpers
 # ---------------------------------------------------------------------------
 
-# Positions that are exclusively defensive (IDP or team defense).
-# In 2019 (ESPN), these appear as starters. Later Sleeper seasons have none.
-_DEFENSIVE_POSITION_TOKENS = {"CB", "DB", "DE", "DL", "DT", "LB", "S", "SS", "FS", "HC", "DEF", "IDP_FLEX"}
+# Individual IDP defensive positions only — K, DST/DEF/D_ST are intentionally excluded.
+_DEFENSIVE_POSITION_TOKENS = {"CB", "DB", "DE", "DL", "DT", "LB", "S", "SS", "FS", "IDP_FLEX"}
+# Non-IDP positions that must never be treated as defensive regardless of naming
+_OFFENSIVE_POSITION_TOKENS = {"K", "DST", "DEF", "D_ST", "D/ST", "HC", "P", "QB", "RB", "WR", "TE", "FLEX", "SUPER_FLEX", "OP"}
 
 
 def is_defensive_position(pos: str) -> bool:
-    """Return True if ALL tokens in a position string are defensive."""
+    """Return True if ALL tokens are IDP-defensive and none are explicitly non-defensive (K, DST, etc.)."""
     if not pos or not isinstance(pos, str):
         return False
     tokens = {t.strip() for t in pos.split(",")}
-    return bool(tokens) and tokens.issubset(_DEFENSIVE_POSITION_TOKENS)
+    if not tokens:
+        return False
+    if tokens & _OFFENSIVE_POSITION_TOKENS:
+        return False
+    return tokens.issubset(_DEFENSIVE_POSITION_TOKENS)
 
 
 def season_has_idp(roster_df: pd.DataFrame, season: int) -> bool:
