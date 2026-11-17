@@ -320,8 +320,11 @@ def best_picks_ever(
         return pd.DataFrame()
 
     combined = pd.concat(all_rows, ignore_index=True)
-    sort_col = "value_above_expected" if adp_adjusted and "value_above_expected" in combined.columns else "vorp"
-    combined = combined.dropna(subset=[sort_col]).sort_values(sort_col, ascending=False).head(top_n).reset_index(drop=True)
+    if adp_adjusted and "value_above_expected" in combined.columns:
+        combined = combined.dropna(subset=["value_above_expected"]).sort_values("value_above_expected", ascending=False)
+    else:
+        combined = combined.sort_values("vorp", ascending=False)
+    combined = combined.head(top_n).reset_index(drop=True)
     combined["rank"] = combined.index + 1
     return combined
 
@@ -360,7 +363,10 @@ def worst_picks_ever(
 
     combined = pd.concat(all_rows, ignore_index=True)
     combined = combined[~combined["keeper"]].copy()
-    sort_col = "value_above_expected" if adp_adjusted and "value_above_expected" in combined.columns else "vorp"
-    combined = combined.dropna(subset=[sort_col]).sort_values(sort_col, ascending=True).head(top_n).reset_index(drop=True)
+    if adp_adjusted and "value_above_expected" in combined.columns:
+        combined = combined.dropna(subset=["value_above_expected"]).sort_values("value_above_expected", ascending=True)
+    else:
+        combined = combined.sort_values("vorp", ascending=True)
+    combined = combined.head(top_n).reset_index(drop=True)
     combined["rank"] = combined.index + 1
     return combined
