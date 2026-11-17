@@ -134,9 +134,3 @@ def render(conn) -> None:
 
     h2h_out = norm[display_cols].rename(columns=rename_map)
     st.dataframe(h2h_out, use_container_width=True, hide_index=True)
-    st.download_button(
-        "⬇️ Download H2H History CSV",
-        h2h_out.to_csv(index=False).encode("utf-8"),
-        f"h2h_{manager_a.replace(' ', '_')}_vs_{manager_b.replace(' ', '_')}.csv",
-        "text/csv", key=f"dl_h2h_{manager_a}_{manager_b}",
-    )

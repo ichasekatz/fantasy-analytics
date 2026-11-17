@@ -154,7 +154,7 @@ def render(conn) -> None:
                     })
                     st.dataframe(disp, use_container_width=True, hide_index=True)
 
-                    # Weekly scoring chart across all leagues
+                    # Weekly scoring chart
                     weekly = player_weekly_scores(rosters_df, pname)
                     if not weekly.empty and len(weekly) > 1:
                         weekly["label"] = weekly["league_id"].str[:12] + " " + weekly["season"].astype(str) + " W" + weekly["week"].astype(str)
@@ -167,13 +167,6 @@ def render(conn) -> None:
                         )
                         fig.update_layout(xaxis_tickangle=-45, height=300)
                         st.plotly_chart(fig, use_container_width=True)
-
-                    st.download_button(
-                        f"⬇️ Download {pname} stats",
-                        breakdown.to_csv(index=False).encode("utf-8"),
-                        f"{pname.replace(' ', '_')}_stats.csv", "text/csv",
-                        key=f"dl_player_{pname[:20]}",
-                    )
 
                     # External NFL stats
                     if _ext_seasonal.exists():
@@ -219,12 +212,6 @@ def render(conn) -> None:
                 "starter_weeks": "Starts", "avg_per_start": "Avg/Start",
                 "leagues_played": "Leagues", "seasons_played": "Seasons",
             }), use_container_width=True, hide_index=True)
-            st.download_button(
-                "⬇️ Download Top Scorers CSV",
-                top_df.to_csv(index=False).encode("utf-8"),
-                f"top_scorers_{top_pos}_{top_season}.csv", "text/csv",
-                key="dl_top_scorers",
-            )
 
             fig = px.bar(
                 top_df.head(20),

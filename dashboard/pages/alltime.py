@@ -41,11 +41,6 @@ def render(conn) -> None:
             display["Total PF"] = display["Total PF"].round(1)
             display["Avg PF/Game"] = display["Avg PF/Game"].round(1)
             st.dataframe(display, use_container_width=True, hide_index=True)
-            st.download_button(
-                "⬇️ Download Career Leaderboard CSV",
-                display.to_csv(index=False).encode("utf-8"),
-                "career_leaderboard.csv", "text/csv", key="dl_alltime_career",
-            )
 
             fig = px.bar(
                 career.head(15), x="owner", y="wins",
@@ -70,11 +65,6 @@ def render(conn) -> None:
         })
         top_scores["Points"] = top_scores["Points"].round(2)
         st.dataframe(top_scores, use_container_width=True, hide_index=True)
-        st.download_button(
-            "⬇️ Download Top Scores CSV",
-            top_scores.to_csv(index=False).encode("utf-8"),
-            "top_scores.csv", "text/csv", key="dl_alltime_top",
-        )
 
         st.subheader("Most Points in a Loss")
         losses = all_scores[~all_scores["won"]].nlargest(10, "pts")[["season", "week", "owner", "team", "pts"]].rename(columns={
@@ -82,11 +72,6 @@ def render(conn) -> None:
         })
         losses["Points"] = losses["Points"].round(2)
         st.dataframe(losses, use_container_width=True, hide_index=True)
-        st.download_button(
-            "⬇️ Download Most Points in Loss CSV",
-            losses.to_csv(index=False).encode("utf-8"),
-            "most_pts_loss.csv", "text/csv", key="dl_alltime_loss",
-        )
 
         st.subheader("Fewest Points in a Win")
         wins = all_scores[all_scores["won"]].nsmallest(10, "pts")[["season", "week", "owner", "team", "pts"]].rename(columns={
@@ -94,11 +79,6 @@ def render(conn) -> None:
         })
         wins["Points"] = wins["Points"].round(2)
         st.dataframe(wins, use_container_width=True, hide_index=True)
-        st.download_button(
-            "⬇️ Download Fewest Points in Win CSV",
-            wins.to_csv(index=False).encode("utf-8"),
-            "fewest_pts_win.csv", "text/csv", key="dl_alltime_win",
-        )
 
     with tab3:
         st.subheader("Win Streaks")
@@ -112,11 +92,6 @@ def render(conn) -> None:
                 "owner": "Manager", "max_win_streak": "Longest Win Streak", "max_loss_streak": "Longest Loss Streak"
             })
             st.dataframe(streak_display, use_container_width=True, hide_index=True)
-            st.download_button(
-                "⬇️ Download Streaks CSV",
-                streak_display.to_csv(index=False).encode("utf-8"),
-                "streaks.csv", "text/csv", key="dl_alltime_streaks",
-            )
 
     with tab4:
         st.subheader("Championships")
@@ -147,20 +122,10 @@ def render(conn) -> None:
             """).df()
             st.dataframe(champs_full, use_container_width=True, hide_index=True)
 
-            st.download_button(
-                "⬇️ Download Championships CSV",
-                champs_full.to_csv(index=False).encode("utf-8"),
-                "championships.csv", "text/csv", key="dl_alltime_champs",
-            )
             champ_counts = champs_full["champion"].value_counts().reset_index()
             champ_counts.columns = ["Manager", "Championships"]
             st.subheader("Championship Counts")
             st.dataframe(champ_counts, use_container_width=True, hide_index=True)
-            st.download_button(
-                "⬇️ Download Champ Counts CSV",
-                champ_counts.to_csv(index=False).encode("utf-8"),
-                "champ_counts.csv", "text/csv", key="dl_alltime_champ_counts",
-            )
 
 
 def _compute_streaks(matchups_df: pd.DataFrame) -> list[dict]:

@@ -79,12 +79,6 @@ def render(conn) -> None:
         out["PF"] = out["PF"].round(2)
         out["PA"] = out["PA"].round(2)
         st.dataframe(out, use_container_width=True, hide_index=True)
-        st.download_button(
-            "⬇️ Download Standings CSV",
-            out.to_csv(index=False).encode("utf-8"),
-            f"standings_{selected_season}.csv", "text/csv",
-            key=f"dl_sexpl_standings_{selected_season}",
-        )
     st.divider()
 
     # --- Section 3: Weekly Scores Heatmap ---
@@ -149,12 +143,6 @@ def render(conn) -> None:
             "score": "Score", "team_b_owner": "Team B", "winner": "Winner",
         })
         st.dataframe(matchup_display, use_container_width=True, hide_index=True)
-        st.download_button(
-            "⬇️ Download Matchups CSV",
-            matchup_display.to_csv(index=False).encode("utf-8"),
-            f"matchups_{selected_season}.csv", "text/csv",
-            key=f"dl_sexpl_matchups_{selected_season}",
-        )
     st.divider()
 
     # --- Section 6: Draft Summary ---
@@ -168,9 +156,3 @@ def render(conn) -> None:
             "player": "Player", "position": "Pos", "keeper": "Keeper",
         })
         st.dataframe(draft_display, use_container_width=True, hide_index=True)
-        st.download_button(
-            "⬇️ Download Draft Summary CSV",
-            draft_display.to_csv(index=False).encode("utf-8"),
-            f"draft_summary_{selected_season}.csv", "text/csv",
-            key=f"dl_sexpl_draft_{selected_season}",
-        )

@@ -43,12 +43,6 @@ def render(conn) -> None:
             "keeper": "Keeper", "cost": "Cost",
         })
         st.dataframe(display, use_container_width=True, hide_index=True)
-        st.download_button(
-            "⬇️ Download Draft Board CSV",
-            display.to_csv(index=False).encode("utf-8"),
-            f"draft_{selected_season}.csv", "text/csv",
-            key=f"dl_draft_{selected_season}",
-        )
 
     with tab2:
         managers = sorted(season_draft["owner_name"].dropna().unique())
@@ -61,21 +55,9 @@ def render(conn) -> None:
             "position": "Pos", "keeper": "Keeper", "cost": "Cost",
         })
         st.dataframe(display_mgr, use_container_width=True, hide_index=True)
-        st.download_button(
-            "⬇️ Download Manager Picks CSV",
-            display_mgr.to_csv(index=False).encode("utf-8"),
-            f"draft_{selected_season}_{selected_mgr.replace(' ', '_')}.csv",
-            "text/csv", key=f"dl_draft_mgr_{selected_season}_{selected_mgr}",
-        )
 
         # Positional breakdown
         pos_counts = mgr_picks["position"].value_counts().reset_index()
         pos_counts.columns = ["Position", "Count"]
         st.subheader("Positional Breakdown")
         st.dataframe(pos_counts, use_container_width=True, hide_index=True)
-        st.download_button(
-            "⬇️ Download Positional Breakdown CSV",
-            pos_counts.to_csv(index=False).encode("utf-8"),
-            f"draft_positions_{selected_season}_{selected_mgr.replace(' ', '_')}.csv",
-            "text/csv", key=f"dl_draft_pos_{selected_season}_{selected_mgr}",
-        )

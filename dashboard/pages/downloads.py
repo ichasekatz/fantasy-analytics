@@ -1,8 +1,11 @@
-"""Downloads page: every table as CSV, raw JSON files, and analytics exports."""
+"""Downloads page: full dataset per league and external analytics data."""
 
 from __future__ import annotations
 
+import io
+import json
 import sys
+import zipfile
 from pathlib import Path
 
 import pandas as pd
@@ -10,30 +13,34 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
 
-from fantasy.analytics.standings import career_standings
-
 _project_root = Path(__file__).parents[2]
 _raw_dir = _project_root / "data" / "raw"
-_identity_dir = _project_root / "data" / "identity"
 _external_dir = _project_root / "data" / "external"
+_leagues_config_path = _project_root / "config" / "leagues.json"
 
 _db_tables = ["matchups", "seasons", "owners", "draft_picks", "rosters", "transactions"]
 
 
-def _safe_read(conn, table: str) -> pd.DataFrame:
-    """Read a table from DuckDB, returning empty DataFrame on failure.
-
-    Args:
-        conn: DuckDB connection.
-        table: Table name to read.
-
-    Returns:
-        DataFrame or empty DataFrame if table missing.
-    """
+def _safe_read(conn, table: str, league_id: str | None = None) -> pd.DataFrame:
     try:
+        if league_id:
+            return conn.execute(
+                f"SELECT * FROM {table} WHERE league_id = ?", [league_id]  # noqa: S608
+            ).df()
         return conn.execute(f"SELECT * FROM {table}").df()  # noqa: S608
     except Exception:
         return pd.DataFrame()
+
+
+def _build_league_zip(conn, league_id: str) -> bytes:
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for table in _db_tables:
+            df = _safe_read(conn, table, league_id)
+            if not df.empty:
+                zf.writestr(f"{table}.csv", df.to_csv(index=False))
+    buf.seek(0)
+    return buf.read()
 
 
 def render(conn) -> None:
@@ -43,174 +50,75 @@ def render(conn) -> None:
         conn: Open DuckDB connection.
     """
     st.title("⬇️ Downloads")
-    st.caption("Download any table as CSV, or grab the raw source files.")
 
-    # --- Raw Data ---
-    st.subheader("Raw Source Files")
-    col1, col2, col3 = st.columns(3)
+    # ── Per-League Full Dataset ──────────────────────────────────────────────
+    st.subheader("Full Dataset per League")
+    st.caption("Each download is a ZIP of CSVs: matchups, rosters, draft picks, transactions, owners, seasons.")
 
-    json_files = list(_raw_dir.glob("*.json")) if _raw_dir.exists() else []
-    for i, jf in enumerate(sorted(json_files)):
-        col = [col1, col2, col3][i % 3]
-        with col:
-            try:
-                data = jf.read_bytes()
-                st.download_button(
-                    f"⬇️ {jf.name}",
-                    data, jf.name, "application/json",
-                    key=f"dl_raw_{jf.stem}",
-                )
-                st.caption(f"{len(data) / 1024:.1f} KB")
-            except OSError:
-                st.error(f"Could not read {jf.name}")
+    try:
+        config = json.loads(_leagues_config_path.read_text(encoding="utf-8"))
+        leagues = config.get("leagues", [])
+    except (OSError, json.JSONDecodeError):
+        leagues = []
 
-    aliases_path = _identity_dir / "manager_aliases.json"
-    with col3:
-        if aliases_path.exists():
-            try:
-                data = aliases_path.read_bytes()
-                st.download_button(
-                    "⬇️ manager_aliases.json",
-                    data, "manager_aliases.json", "application/json",
-                    key="dl_aliases",
-                )
-                st.caption(f"{len(data) / 1024:.1f} KB")
-            except OSError:
-                pass
-
-    st.divider()
-
-    # --- League Tables ---
-    st.subheader("League Database Tables")
-    for i, table in enumerate(_db_tables):
-        df = _safe_read(conn, table)
-        c1, c2, c3 = st.columns([2, 1, 2])
-        with c1:
-            st.markdown(f"**{table}**")
-        with c2:
-            st.caption(f"{len(df):,} rows")
-        with c3:
-            if not df.empty:
-                st.download_button(
-                    f"⬇️ {table}.csv",
-                    df.to_csv(index=False).encode("utf-8"),
-                    f"{table}.csv", "text/csv",
-                    key=f"dl_table_{table}",
-                )
-            else:
-                st.caption("(empty)")
-
-    st.divider()
-
-    # --- External Data ---
-    st.subheader("External NFL Data")
-    ext_files = list(_external_dir.glob("*.parquet")) if _external_dir.exists() else []
-    if not ext_files:
-        st.info("No external data cached yet. Reload data or run the NFL data fetch script.")
+    if leagues:
+        cols = st.columns(min(len(leagues), 3))
+        for i, entry in enumerate(leagues):
+            lid = entry["league_id"]
+            name = entry["name"]
+            is_primary = entry.get("primary", True)
+            col = cols[i % len(cols)]
+            with col:
+                label = name if is_primary else f"{name} ↳"
+                try:
+                    zip_bytes = _build_league_zip(conn, lid)
+                    st.download_button(
+                        f"⬇️ {label}",
+                        zip_bytes,
+                        f"{lid}.zip",
+                        "application/zip",
+                        key=f"dl_league_{lid}",
+                    )
+                    size_kb = len(zip_bytes) / 1024
+                    st.caption(f"{size_kb:.0f} KB")
+                except Exception as exc:
+                    st.error(f"{name}: {exc}")
     else:
-        for i, pf in enumerate(sorted(ext_files)):
-            c1, c2, c3 = st.columns([2, 1, 2])
+        st.info("No leagues registered in config/leagues.json.")
+
+    st.divider()
+
+    # ── External Analytics Data ──────────────────────────────────────────────
+    st.subheader("External Analytics Data")
+    st.caption("NFL player stats and draft value data fetched from nfl_data_py. Use these for ADP and performance benchmarking outside your leagues.")
+
+    ext_files = sorted(_external_dir.glob("*.parquet")) if _external_dir.exists() else []
+    if not ext_files:
+        st.info("No external data cached. Click 'Reload Data' in the sidebar to fetch.")
+    else:
+        for pf in ext_files:
+            c1, c2, c3 = st.columns([3, 1, 2])
             try:
-                ext_df = pd.read_parquet(pf)
+                df = pd.read_parquet(pf)
+                label_map = {
+                    "nfl_weekly_stats": "NFL Weekly Player Stats",
+                    "nfl_seasonal_stats": "NFL Seasonal Player Stats",
+                    "historical_adp": "Draft Pick Value / ADP",
+                }
+                display = label_map.get(pf.stem, pf.stem)
                 with c1:
-                    st.markdown(f"**{pf.stem}**")
+                    st.markdown(f"**{display}**")
+                    st.caption(pf.stem)
                 with c2:
-                    st.caption(f"{len(ext_df):,} rows")
+                    st.caption(f"{len(df):,} rows")
                 with c3:
                     st.download_button(
                         f"⬇️ {pf.stem}.csv",
-                        ext_df.to_csv(index=False).encode("utf-8"),
-                        f"{pf.stem}.csv", "text/csv",
+                        df.to_csv(index=False).encode("utf-8"),
+                        f"{pf.stem}.csv",
+                        "text/csv",
                         key=f"dl_ext_{pf.stem}",
                     )
             except Exception as exc:
                 with c1:
                     st.error(f"{pf.name}: {exc}")
-
-    st.divider()
-
-    # --- Analytics Results ---
-    st.subheader("Analytics Results")
-
-    matchups_df = _safe_read(conn, "matchups")
-
-    # Career standings
-    if not matchups_df.empty:
-        c1, c2, c3 = st.columns([2, 1, 2])
-        try:
-            career = career_standings(matchups_df)
-            with c1:
-                st.markdown("**career_standings**")
-            with c2:
-                st.caption(f"{len(career):,} rows")
-            with c3:
-                st.download_button(
-                    "⬇️ career_standings.csv",
-                    career.to_csv(index=False).encode("utf-8"),
-                    "career_standings.csv", "text/csv",
-                    key="dl_analytics_career",
-                )
-        except Exception as exc:
-            st.error(f"Career standings error: {exc}")
-
-    # All matchups CSV
-    if not matchups_df.empty:
-        c1, c2, c3 = st.columns([2, 1, 2])
-        with c1:
-            st.markdown("**all_matchups**")
-        with c2:
-            st.caption(f"{len(matchups_df):,} rows")
-        with c3:
-            st.download_button(
-                "⬇️ all_matchups.csv",
-                matchups_df.to_csv(index=False).encode("utf-8"),
-                "all_matchups.csv", "text/csv",
-                key="dl_analytics_matchups",
-            )
-
-    # Draft picks + VORP (if available)
-    draft_df = _safe_read(conn, "draft_picks")
-    rosters_df = _safe_read(conn, "rosters")
-    if not draft_df.empty:
-        c1, c2, c3 = st.columns([2, 1, 2])
-        try:
-            from fantasy.analytics.draft_analytics import draft_pick_value
-
-            vorp_rows = []
-            for season in sorted(draft_df["season"].unique()):
-                s_df = draft_pick_value(draft_df, rosters_df, int(season))
-                vorp_rows.append(s_df)
-            if vorp_rows:
-                vorp_df = pd.concat(vorp_rows, ignore_index=True)
-                with c1:
-                    st.markdown("**draft_picks_with_vorp**")
-                with c2:
-                    st.caption(f"{len(vorp_df):,} rows")
-                with c3:
-                    st.download_button(
-                        "⬇️ draft_picks_vorp.csv",
-                        vorp_df.to_csv(index=False).encode("utf-8"),
-                        "draft_picks_vorp.csv", "text/csv",
-                        key="dl_analytics_vorp",
-                    )
-        except ImportError:
-            with c1:
-                st.markdown("**draft_picks** (no VORP — analytics module not loaded)")
-            with c2:
-                st.caption(f"{len(draft_df):,} rows")
-            with c3:
-                st.download_button(
-                    "⬇️ draft_picks.csv",
-                    draft_df.to_csv(index=False).encode("utf-8"),
-                    "draft_picks.csv", "text/csv",
-                    key="dl_analytics_draft",
-                )
-        except Exception as exc:
-            st.warning(f"VORP calculation error: {exc}")
-            with c3:
-                st.download_button(
-                    "⬇️ draft_picks.csv",
-                    draft_df.to_csv(index=False).encode("utf-8"),
-                    "draft_picks.csv", "text/csv",
-                    key="dl_analytics_draft_fallback",
-                )

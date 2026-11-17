@@ -88,8 +88,3 @@ def _display_matchup_table(df: pd.DataFrame) -> None:
     out = display[cols].rename(columns=col_labels)
     st.dataframe(out, use_container_width=True, hide_index=True)
     st.caption(f"{len(display)} matchup(s)")
-    st.download_button(
-        "⬇️ Download Matchups CSV",
-        out.to_csv(index=False).encode("utf-8"),
-        "matchups.csv", "text/csv", key=f"dl_matchups_{len(display)}",
-    )

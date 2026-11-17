@@ -92,12 +92,6 @@ def render(conn) -> None:
                 "best_week_left": "Best Wk",
             })
             st.dataframe(display, use_container_width=True, hide_index=True)
-            st.download_button(
-                "⬇️ Download Efficiency Summary CSV",
-                display.to_csv(index=False).encode("utf-8"),
-                f"lineup_efficiency_{selected_season or 'all'}.csv",
-                "text/csv", key="dl_lineup_summary",
-            )
 
             # Bar chart
             fig = px.bar(
@@ -135,12 +129,6 @@ def render(conn) -> None:
                     title=f"{selected_season} Points Left on Bench",
                 )
                 st.plotly_chart(fig3, use_container_width=True)
-                st.download_button(
-                    "⬇️ Download Weekly Efficiency CSV",
-                    eff_df.to_csv(index=False).encode("utf-8"),
-                    f"weekly_efficiency_{selected_season}.csv",
-                    "text/csv", key="dl_lineup_weekly",
-                )
 
     with tab3:
         st.subheader("Bench Strength")
@@ -161,9 +149,3 @@ def render(conn) -> None:
                 "bench_ratio": "Bench/Starter Ratio",
             })
             st.dataframe(bench_display, use_container_width=True, hide_index=True)
-            st.download_button(
-                "⬇️ Download Bench Strength CSV",
-                bench_display.to_csv(index=False).encode("utf-8"),
-                f"bench_strength_{selected_season or 'all'}.csv",
-                "text/csv", key="dl_lineup_bench",
-            )

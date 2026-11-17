@@ -137,12 +137,6 @@ def render(conn) -> None:
     if rows:
         rows_df = pd.DataFrame(rows)
         st.dataframe(rows_df, use_container_width=True, hide_index=True)
-        st.download_button(
-            "⬇️ Download Season Stats CSV",
-            rows_df.to_csv(index=False).encode("utf-8"),
-            f"manager_{selected_manager.replace(' ', '_')}.csv",
-            "text/csv", key=f"dl_mgr_{selected_manager}",
-        )
     if _missing_seasons:
         st.caption(f"⚠️ Missing data for season(s): {', '.join(str(s) for s in _missing_seasons)}")
 

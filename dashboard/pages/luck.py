@@ -53,12 +53,6 @@ def render(conn) -> None:
         "luck_delta": "Luck Δ", "schedule_difficulty": "Opp Avg PF",
     })
     st.dataframe(display, use_container_width=True, hide_index=True)
-    st.download_button(
-        "⬇️ Download Luck Data CSV",
-        display.to_csv(index=False).encode("utf-8"),
-        f"luck_{selected_season}.csv", "text/csv",
-        key=f"dl_luck_{selected_season}",
-    )
 
     st.divider()
 

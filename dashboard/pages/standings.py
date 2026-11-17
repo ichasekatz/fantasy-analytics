@@ -50,12 +50,6 @@ def render(conn) -> None:
             out["PA"] = out["PA"].round(2)
             out["Avg PF"] = out["Avg PF"].round(1)
             st.dataframe(out, use_container_width=True, hide_index=True)
-            st.download_button(
-                "⬇️ Download Standings CSV",
-                out.to_csv(index=False).encode("utf-8"),
-                f"standings_{selected_season}.csv", "text/csv",
-                key=f"dl_standings_{selected_season}",
-            )
 
     with tab2:
         ap = all_play_records(matchups_df, selected_season)
@@ -71,12 +65,6 @@ def render(conn) -> None:
             out = ap[display_cols].rename(columns=rename)
             out["AP Win%"] = out["AP Win%"].apply(lambda x: f"{x:.3f}" if x == x else "—")
             st.dataframe(out, use_container_width=True, hide_index=True)
-            st.download_button(
-                "⬇️ Download All-Play CSV",
-                out.to_csv(index=False).encode("utf-8"),
-                f"allplay_{selected_season}.csv", "text/csv",
-                key=f"dl_allplay_{selected_season}",
-            )
             st.caption(
                 "All-play win% = how often each team would win if they played every other team each week. "
                 "Removes schedule luck."

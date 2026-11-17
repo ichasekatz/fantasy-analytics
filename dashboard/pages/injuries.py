@@ -129,12 +129,6 @@ def render(conn) -> None:
                 "pct_of_avg": "% of Avg", "flag": "Status",
             }).sort_values(["Season", "% of Avg"])
             st.dataframe(display, use_container_width=True, hide_index=True)
-            st.download_button(
-                "⬇️ Download Impacted Players CSV",
-                display.to_csv(index=False).encode("utf-8"),
-                f"impacted_players_{selected_season or 'all'}.csv",
-                "text/csv", key="dl_injury_impacted",
-            )
 
     with tab2:
         st.subheader("Manager Injury Burden")
@@ -160,12 +154,6 @@ def render(conn) -> None:
             "impact_rate": "Impact Rate (%)",
         })
         st.dataframe(display2, use_container_width=True, hide_index=True)
-        st.download_button(
-            "⬇️ Download Injury Burden CSV",
-            display2.to_csv(index=False).encode("utf-8"),
-            f"injury_burden_{selected_season or 'all'}.csv",
-            "text/csv", key="dl_injury_burden",
-        )
 
         # External data: zero-point weeks per player
         search_player = st.text_input("Check a specific player's weekly scores (requires external data)")

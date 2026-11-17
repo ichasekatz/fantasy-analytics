@@ -31,11 +31,6 @@ def render(conn) -> None:
     """).df()
     if not champs.empty:
         st.dataframe(champs, use_container_width=True, hide_index=True)
-        st.download_button(
-            "⬇️ Download Champions CSV",
-            champs.to_csv(index=False).encode("utf-8"),
-            "champions.csv", "text/csv", key="dl_overview_champs",
-        )
     else:
         st.info("No championship matchup data available.")
 
@@ -58,11 +53,6 @@ def render(conn) -> None:
         summary["high_score"] = summary["high_score"].round(2)
         summary["low_score"] = summary["low_score"].round(2)
         st.dataframe(summary, use_container_width=True, hide_index=True)
-        st.download_button(
-            "⬇️ Download Season Summary CSV",
-            summary.to_csv(index=False).encode("utf-8"),
-            "season_summary.csv", "text/csv", key="dl_overview_summary",
-        )
 
         # Scoring trend chart
         st.subheader("📈 Average Score by Season")

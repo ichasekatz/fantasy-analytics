@@ -111,11 +111,6 @@ def render(conn) -> None:
     if stat_rows:
         stats_df = pd.DataFrame(stat_rows)
         st.dataframe(stats_df, use_container_width=True, hide_index=True)
-        st.download_button(
-            "⬇️ Download Comparison CSV",
-            stats_df.to_csv(index=False).encode("utf-8"),
-            "manager_comparison.csv", "text/csv", key="dl_comp_stats",
-        )
     else:
         st.info("No data found for selected managers in this season.")
 
@@ -228,8 +223,3 @@ def render(conn) -> None:
         matrix_df = pd.DataFrame(h2h_matrix).T
         st.dataframe(matrix_df, use_container_width=True)
         st.caption("Format: wins–losses for the row manager against the column manager.")
-        st.download_button(
-            "⬇️ Download H2H Matrix CSV",
-            matrix_df.to_csv().encode("utf-8"),
-            "h2h_matrix.csv", "text/csv", key="dl_comp_h2h",
-        )
