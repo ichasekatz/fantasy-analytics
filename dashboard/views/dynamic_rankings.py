@@ -93,7 +93,7 @@ def render(conn) -> None:
 
     display_cols = [c for c in [
         "Rank", "Manager", "Composite Score",
-        "Win%", "Points For", "All-Play%", "Expected Wins", "Consistency", "Playoff Apps",
+        "Win%", "Points For", "Avg PF Rank", "All-Play%", "Expected Wins", "Consistency", "Playoff Apps",
         "Seasons"
     ] if c in rankings.columns]
 
@@ -108,7 +108,7 @@ def render(conn) -> None:
     styled_df = style_dataframe(
         styled,
         higher_is_better=["Composite Score", "Win%", "Points For", "All-Play%", "Expected Wins", "Consistency", "Playoff Apps", "Seasons"],
-        lower_is_better=["Rank"],
+        lower_is_better=["Avg PF Rank"],
     )
     st.dataframe(styled_df, use_container_width=True, hide_index=True)
 
@@ -220,6 +220,26 @@ def _compute_composite(
     metrics["Consistency"] = metrics["Manager"].map(
         lambda o: max(0, 1 - (std_scores.get(o, 0) / max(max_std, 1)))
     )
+
+    # Avg PF Rank (12-team normalized, 1=best) across seasons in view
+    pf_rank_rows = []
+    for _s in sorted(view_df["season"].dropna().unique()):
+        _sdf = season_standings(view_df, int(_s), lid)
+        if _sdf.empty:
+            continue
+        _n = len(_sdf)
+        if _n < 2:
+            continue
+        _r = _sdf["points_for"].rank(ascending=False, method="min")
+        for _i, _row in _sdf.iterrows():
+            pf_rank_rows.append({"owner": _row["owner"], "pf_rank_12": 1 + (_r.loc[_i] - 1) / (_n - 1) * 11})
+    if pf_rank_rows:
+        _pf_df = pd.DataFrame(pf_rank_rows).groupby("owner")["pf_rank_12"].mean().reset_index()
+        metrics = metrics.merge(
+            _pf_df.rename(columns={"owner": "Manager", "pf_rank_12": "Avg PF Rank"}),
+            on="Manager", how="left",
+        )
+        metrics["Avg PF Rank"] = metrics["Avg PF Rank"].round(1)
 
     # Playoff appearances
     playoff_df = full_df[full_df["is_playoff"].fillna(False) | full_df["is_championship"].fillna(False)]
