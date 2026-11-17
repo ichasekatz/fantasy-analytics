@@ -103,7 +103,7 @@ def render(conn) -> None:
             styled_lineup = style_dataframe(
                 display,
                 higher_is_better=["Avg Efficiency (%)"],
-                lower_is_better=["Avg Pts Left/Wk", "Total Pts Left"],
+                lower_is_better=["Avg Pts Left/Wk", "Total Pts Left", "Worst Wk", "Best Wk"],
             )
             st.dataframe(styled_lineup, use_container_width=True, hide_index=True)
 
@@ -189,12 +189,17 @@ def render(conn) -> None:
             grade_counts.columns = [f"Grade {g}" for g in grade_order]
             summary = summary.merge(grade_counts.reset_index(), on="owner", how="left")
 
+            dq_display = summary.sort_values("avg_missed").rename(columns={
+                "owner": "Manager", "avg_missed": "Avg Missed/Wk",
+                "total_missed": "Total Missed", "worst_week": "Worst Week",
+                "weeks": "Weeks",
+            })
             st.dataframe(
-                summary.sort_values("avg_missed").rename(columns={
-                    "owner": "Manager", "avg_missed": "Avg Missed/Wk",
-                    "total_missed": "Total Missed", "worst_week": "Worst Week",
-                    "weeks": "Weeks",
-                }),
+                style_dataframe(
+                    dq_display,
+                    higher_is_better=["Grade A", "Weeks"],
+                    lower_is_better=["Avg Missed/Wk", "Total Missed", "Worst Week", "Grade D"],
+                ),
                 use_container_width=True, hide_index=True,
             )
 
@@ -219,4 +224,7 @@ def render(conn) -> None:
             worst["Actual"] = worst["Actual"].round(2)
             worst["Optimal"] = worst["Optimal"].round(2)
             worst["Missed"] = worst["Missed"].round(2)
-            st.dataframe(worst, use_container_width=True, hide_index=True)
+            st.dataframe(
+                style_dataframe(worst, higher_is_better=["Actual", "Optimal"], lower_is_better=["Missed"]),
+                use_container_width=True, hide_index=True,
+            )
