@@ -414,8 +414,15 @@ def _render_best_picks(draft_df: pd.DataFrame, rosters_df: pd.DataFrame, lid: st
     st.subheader("Best Draft Picks in League History")
     st.caption("Top picks by VORP — the most valuable selections relative to replacement level.")
 
-    top_n = st.selectbox("Show top", [25, 50, 100], key="best_picks_n")
-    best = best_picks_ever(draft_df, rosters_df, league_id=lid, top_n=top_n)
+    _seasons = sorted(draft_df["season"].dropna().unique())
+    col1, col2 = st.columns(2)
+    with col1:
+        top_n = st.selectbox("Show top", [25, 50, 100], key="best_picks_n")
+    with col2:
+        sel_yr = st.selectbox("Season", ["All Time"] + [str(s) for s in _seasons], key="best_picks_yr")
+    _df = draft_df if sel_yr == "All Time" else draft_df[draft_df["season"] == int(sel_yr)]
+    _rdf = rosters_df if sel_yr == "All Time" else rosters_df[rosters_df["season"] == int(sel_yr)] if "season" in rosters_df.columns else rosters_df
+    best = best_picks_ever(_df, _rdf, league_id=lid, top_n=top_n)
 
     if best.empty:
         st.info("No data.")
@@ -437,8 +444,15 @@ def _render_worst_picks(draft_df: pd.DataFrame, rosters_df: pd.DataFrame, lid: s
     st.subheader("Worst Draft Picks in League History")
     st.caption("Top busts by VORP — the most disappointing selections. Keepers excluded.")
 
-    top_n = st.selectbox("Show top", [25, 50, 100], key="worst_picks_n")
-    worst = worst_picks_ever(draft_df, rosters_df, league_id=lid, top_n=top_n)
+    _seasons = sorted(draft_df["season"].dropna().unique())
+    col1, col2 = st.columns(2)
+    with col1:
+        top_n = st.selectbox("Show top", [25, 50, 100], key="worst_picks_n")
+    with col2:
+        sel_yr = st.selectbox("Season", ["All Time"] + [str(s) for s in _seasons], key="worst_picks_yr")
+    _df = draft_df if sel_yr == "All Time" else draft_df[draft_df["season"] == int(sel_yr)]
+    _rdf = rosters_df if sel_yr == "All Time" else rosters_df[rosters_df["season"] == int(sel_yr)] if "season" in rosters_df.columns else rosters_df
+    worst = worst_picks_ever(_df, _rdf, league_id=lid, top_n=top_n)
 
     if worst.empty:
         st.info("No data.")
