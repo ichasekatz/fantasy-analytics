@@ -264,7 +264,44 @@ def render(conn) -> None:
 
     with tab2:
         if all_time:
-            st.info("All-play standings are per-season. Select a season to view.")
+            # Aggregate all-play records across all seasons
+            all_ap_rows = []
+            for _s in sorted(matchups_df["season"].dropna().unique()):
+                _ap = all_play_records(matchups_df, int(_s))
+                if not _ap.empty:
+                    all_ap_rows.append(_ap[["owner", "ap_wins", "ap_losses"]].copy())
+            if not all_ap_rows:
+                st.info("No all-play data available.")
+            else:
+                combined_ap = pd.concat(all_ap_rows, ignore_index=True)
+                career_ap = combined_ap.groupby("owner").agg(
+                    ap_wins=("ap_wins", "sum"),
+                    ap_losses=("ap_losses", "sum"),
+                ).reset_index()
+                career_ap["ap_win_pct"] = (
+                    career_ap["ap_wins"] / (career_ap["ap_wins"] + career_ap["ap_losses"]).replace(0, pd.NA)
+                ).round(3)
+                # Attach seasons_played for min_seasons filter
+                seasons_per_ap = (
+                    pd.concat([_ap[["owner"]].assign(season=int(_s))
+                               for _s in sorted(matchups_df["season"].dropna().unique())
+                               for _ap in [all_play_records(matchups_df, int(_s))]
+                               if not _ap.empty], ignore_index=True)
+                    .groupby("owner")["season"].nunique()
+                    .reset_index(name="seasons_played")
+                )
+                career_ap = career_ap.merge(seasons_per_ap, on="owner", how="left")
+                if min_seasons_filter > 1 and "seasons_played" in career_ap.columns:
+                    career_ap = career_ap[career_ap["seasons_played"] >= min_seasons_filter]
+                career_ap = career_ap.sort_values("ap_win_pct", ascending=False).reset_index(drop=True)
+                career_ap.insert(0, "Rank", range(1, len(career_ap) + 1))
+                out_ap = career_ap[["Rank", "owner", "ap_wins", "ap_losses", "ap_win_pct", "seasons_played"]].rename(columns={
+                    "owner": "Owner", "ap_wins": "AP W", "ap_losses": "AP L",
+                    "ap_win_pct": "AP Win%", "seasons_played": "Seasons",
+                })
+                styled_ap = style_dataframe(out_ap, higher_is_better=["AP W", "AP Win%", "Seasons"], lower_is_better=["AP L", "Rank"])
+                st.dataframe(styled_ap, use_container_width=True, hide_index=True)
+                st.caption("All-play win% across all seasons. Removes schedule luck.")
         else:
             ap = all_play_records(matchups_df, selected_season)
             if ap.empty:
