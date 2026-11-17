@@ -54,6 +54,16 @@ def render(conn) -> None:
 
     seasons = sorted(draft_df["season"].unique())
 
+    # Global season filter — applies to all tabs; default "All Seasons"
+    _dna_season_opts = ["All Seasons"] + [str(s) for s in seasons]
+    sel_dna_season = st.selectbox("Season", _dna_season_opts, key="dna_season_filter", index=0)
+    if sel_dna_season != "All Seasons":
+        _yr = int(sel_dna_season)
+        draft_df = draft_df[draft_df["season"] == _yr]
+        if "season" in rosters_df.columns:
+            rosters_df = rosters_df[rosters_df["season"] == _yr]
+        seasons = [_yr]
+
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "Position Tendencies",
         "Manager Draft Grades",

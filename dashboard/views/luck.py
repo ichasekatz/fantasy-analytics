@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).parents[1]))
 sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
 
 from fantasy.analytics.luck import luck_metrics, schedule_luck
-from utils import apply_league_filter
+from utils import apply_league_filter, style_dataframe
 
 
 _EXTRA_COLS = ["opp_avg_pf", "opp_season_avg_pf", "opp_above_avg", "opp_win_pct"]
@@ -135,14 +135,20 @@ def render(conn) -> None:
             tbl = luck[[c for c in show_cols if c in luck.columns]].copy()
             tbl["opp_season_avg_pf"] = tbl["opp_season_avg_pf"].round(1)
             tbl["opp_avg_pf"] = tbl["opp_avg_pf"].round(1)
-            tbl["opp_win_pct"] = tbl["opp_win_pct"].apply(lambda x: f"{x:.3f}" if pd.notna(x) else "—")
+            tbl["opp_win_pct"] = pd.to_numeric(tbl["opp_win_pct"], errors="coerce").round(3)
             tbl = tbl.rename(columns={
                 "owner": "Manager", "team": "Team",
                 "opp_season_avg_pf": "Opp Season Avg PF",
                 "opp_avg_pf": "Opp Avg PF vs You",
                 "opp_win_pct": "Opp Win%",
             })
-            st.dataframe(tbl.sort_values("Opp Season Avg PF", ascending=False), use_container_width=True, hide_index=True)
+            st.dataframe(
+                style_dataframe(
+                    tbl.sort_values("Opp Season Avg PF", ascending=False),
+                    lower_is_better=["Opp Season Avg PF", "Opp Avg PF vs You", "Opp Win%"],
+                ),
+                use_container_width=True, hide_index=True,
+            )
         else:
             st.info("Schedule quality data unavailable for this selection.")
 
@@ -185,7 +191,13 @@ def render(conn) -> None:
                 "opp_avg_pf": "Opp Avg vs You",
                 "opp_season_avg_pf": "Opp Season Avg",
             })
-            st.dataframe(tbl2.sort_values("Opp Above Avg", ascending=False), use_container_width=True, hide_index=True)
+            st.dataframe(
+                style_dataframe(
+                    tbl2.sort_values("Opp Above Avg", ascending=False),
+                    lower_is_better=["Opp Above Avg", "Opp Avg vs You", "Opp Season Avg"],
+                ),
+                use_container_width=True, hide_index=True,
+            )
         else:
             st.info("Weekly scoring luck data unavailable for this selection.")
 
@@ -223,4 +235,10 @@ def render(conn) -> None:
             "owner": "Manager", "team": "Team",
             "actual_wins": "Actual W", "expected_wins": "Expected W", "luck_delta": "Luck Δ",
         })
-        st.dataframe(tbl3.sort_values("Luck Δ", ascending=False), use_container_width=True, hide_index=True)
+        st.dataframe(
+            style_dataframe(
+                tbl3.sort_values("Luck Δ", ascending=False),
+                higher_is_better=["Actual W", "Expected W", "Luck Δ"],
+            ),
+            use_container_width=True, hide_index=True,
+        )
