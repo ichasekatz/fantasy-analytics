@@ -164,6 +164,15 @@ with st.sidebar:
     )
     st.session_state["season_range"] = (_yr_min, _yr_max)
 
+    # Min seasons played — filters manager displays (visual only, not underlying data)
+    _max_seasons = len(_all_seasons)
+    st.session_state["min_seasons_played"] = st.slider(
+        "Min seasons played",
+        min_value=1, max_value=_max_seasons,
+        value=st.session_state.get("min_seasons_played", 1),
+        help="Hide managers with fewer seasons from rankings and comparisons.",
+    )
+
     st.divider()
 
     selected = st.radio("Navigate", list(pages.keys()), label_visibility="collapsed")

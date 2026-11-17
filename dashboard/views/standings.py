@@ -153,18 +153,10 @@ def render(conn) -> None:
     provider_map = dict(zip(seasons_df["season"], seasons_df["provider"], strict=False))
     season_labels = ["All Time"] + [f"{s} ({provider_map.get(s, '?')})" for s in seasons]
 
-    col_sel, col_minsea = st.columns([3, 2])
-    with col_sel:
-        selected_label = st.selectbox("Season", season_labels, index=len(season_labels) - 1)
-    with col_minsea:
-        min_seasons_filter = st.slider(
-            "Min seasons played",
-            min_value=1, max_value=max(len(seasons), 1), value=1,
-            key="avg_rank_min_seasons",
-            help="Avg Season Rank tab: only show managers with at least this many seasons.",
-        )
+    selected_label = st.selectbox("Season", season_labels, index=len(season_labels) - 1)
     all_time = selected_label == "All Time"
     selected_season = None if all_time else seasons[season_labels.index(selected_label) - 1]
+    min_seasons_filter = st.session_state.get("min_seasons_played", 1)
 
     tab_labels = ["Regular Season Standings", "All-Play Standings"]
     if all_time:
