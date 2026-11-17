@@ -194,7 +194,19 @@ def _render_shame(draft_df: pd.DataFrame, rosters_df: pd.DataFrame) -> None:
     for badge in SHAME_BADGES:
         with st.expander(f"{badge['emoji']} **{badge['award']}** — {badge['player']}", expanded=True):
             st.caption(badge["description"])
-            recs = badge["recipients"]
+            recs = list(badge["recipients"])
+
+            # Auto-discover drafters from draft_df when recipients list is empty
+            if not recs and not draft_df.empty and "player" in draft_df.columns:
+                player_picks = draft_df[draft_df["player"] == badge["player"]]
+                for _, pick_row in player_picks.iterrows():
+                    recs.append({
+                        "owner": pick_row.get("owner_name", "?"),
+                        "team": pick_row.get("team_name", ""),
+                        "season": int(pick_row["season"]) if pd.notna(pick_row.get("season")) else "?",
+                        "round": int(pick_row["round"]) if pd.notna(pick_row.get("round")) else "?",
+                        "overall": int(pick_row["overall"]) if pd.notna(pick_row.get("overall")) else "?",
+                    })
 
             # Deduplicate by (owner, season)
             seen: set[tuple] = set()
