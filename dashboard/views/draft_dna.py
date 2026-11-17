@@ -258,12 +258,12 @@ def _render_draft_grades(
             "steals_count": "Avg Steals",
             "busts_count": "Avg Busts",
             "keeper_count": "Avg Keepers",
-            "non_keeper_vorp": "Avg Non-Keeper VORP",
         })
+        display = display.drop(columns=["non_keeper_vorp"], errors="ignore")
         for col in [c for c in display.columns if "VORP" in c or "Steals" in c or "Busts" in c]:
             if col in display.columns:
                 display[col] = display[col].round(1)
-        vorp_hib = [c for c in display.columns if "VORP" in c or "Steals" in c]
+        vorp_hib = [c for c in display.columns if "VORP" in c or "Steals" in c] + ["Drafts"]
         vorp_lib = [c for c in display.columns if "Busts" in c]
         st.dataframe(style_dataframe(display, higher_is_better=vorp_hib, lower_is_better=vorp_lib), use_container_width=True, hide_index=True)
         chart_col = "Avg VORP/Pick"
@@ -277,9 +277,9 @@ def _render_draft_grades(
             "steals_count": "Steals",
             "busts_count": "Busts",
             "keeper_count": "Keepers",
-            "non_keeper_vorp": "Non-Keeper VORP",
             "draft_rank": "Rank",
         })
+        display = display.drop(columns=["non_keeper_vorp"], errors="ignore")
         for col in ["Total VORP", "Avg VORP/Pick", "Non-Keeper VORP"]:
             if col in display.columns:
                 display[col] = display[col].round(1)

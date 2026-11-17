@@ -271,10 +271,10 @@ def manager_draft_grades(
             rows.append({
                 "season": s,
                 "owner_name": owner,
-                "total_draft_vorp": grp["vorp"].sum(skipna=True),
-                "avg_pick_vorp": grp["vorp"].mean(skipna=True),
-                "steals_count": int((grp["label"] == "steal").sum()),
-                "busts_count": int((grp["label"] == "bust").sum()),
+                "total_draft_vorp": non_keepers["vorp"].sum(skipna=True),
+                "avg_pick_vorp": non_keepers["vorp"].mean(skipna=True),
+                "steals_count": int((non_keepers["label"] == "steal").sum()),
+                "busts_count": int((non_keepers["label"] == "bust").sum()),
                 "keeper_count": int(grp["keeper"].sum()),
                 "non_keeper_vorp": non_keepers["vorp"].sum(skipna=True),
             })
