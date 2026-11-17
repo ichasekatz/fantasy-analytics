@@ -119,6 +119,12 @@ def apply_league_filter(df: pd.DataFrame) -> pd.DataFrame:
         elif fmt == "dynasty_only":
             df = df[df["league_id"].apply(is_dynasty_league)].copy()
 
+    # Global season range filter
+    season_range = st.session_state.get("season_range")
+    if season_range is not None and "season" in df.columns:
+        yr_min, yr_max = season_range
+        df = df[(df["season"] >= yr_min) & (df["season"] <= yr_max)].copy()
+
     # Player exclusions (session-only, always applied)
     excluded: list[str] = st.session_state.get("excluded_players", [])
     if excluded and "player" in df.columns:

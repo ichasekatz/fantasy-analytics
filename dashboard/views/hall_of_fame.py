@@ -147,7 +147,8 @@ def _render_season_timeline(conn, matchups_df: pd.DataFrame, dynasty_df: pd.Data
         for s in reversed(seasons):
             s = int(s)
             season_scores = all_scores[all_scores["season"] == s]
-            teams = len(matchups_df[matchups_df["season"] == s][["team_a_owner"]].drop_duplicates())
+            _sd = matchups_df[matchups_df["season"] == s]
+            teams = len(set(_sd["team_a_owner"].dropna().tolist() + _sd["team_b_owner"].dropna().tolist()))
             champion = champ_map.get(s, "—")
             top_scorer = season_scores.loc[season_scores["pts"].idxmax()] if not season_scores.empty else None
 
@@ -187,7 +188,8 @@ def _render_season_timeline(conn, matchups_df: pd.DataFrame, dynasty_df: pd.Data
         for s in reversed(dynasty_seasons):
             s = int(s)
             champion = dynasty_champ_map.get(s, "—")
-            teams = len(dynasty_df[dynasty_df["season"] == s][["team_a_owner"]].drop_duplicates())
+            _dsd = dynasty_df[dynasty_df["season"] == s]
+            teams = len(set(_dsd["team_a_owner"].dropna().tolist() + _dsd["team_b_owner"].dropna().tolist()))
             with st.expander(f"**{s}** — 🏆 {champion} · {teams} teams (dynasty)", expanded=False):
                 st.caption("Dynasty league season.")
 

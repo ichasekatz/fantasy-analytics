@@ -27,9 +27,14 @@ def _avg_season_rank(matchups_df: pd.DataFrame, lid: str | None) -> pd.DataFrame
         if st_df.empty:
             continue
         n = len(st_df)
-        for rank, (_, row) in enumerate(st_df.iterrows(), start=1):
+        # Rank PF descending (rank 1 = highest scorer) and PA ascending (rank 1 = fewest against)
+        pf_ranks = st_df["points_for"].fillna(0).rank(ascending=False, method="min").astype(int)
+        pa_ranks = st_df["points_against"].fillna(0).rank(ascending=True, method="min").astype(int)
+        for rank, (idx, row) in enumerate(st_df.iterrows(), start=1):
             # Percentile rank: 1.0 = best, 0.0 = worst (normalized for field size)
             pct_rank = 1.0 - (rank - 1) / max(n - 1, 1)
+            pf_r = int(pf_ranks.loc[idx])
+            pa_r = int(pa_ranks.loc[idx])
             rows.append({
                 "owner": row["owner"],
                 "season": int(s),
@@ -39,6 +44,8 @@ def _avg_season_rank(matchups_df: pd.DataFrame, lid: str | None) -> pd.DataFrame
                 "h2h_win_pct": row.get("h2h_win_pct", float("nan")),
                 "total_wins": row.get("total_wins", 0),
                 "points_for": row.get("points_for", 0),
+                "pf_pct_rank": 1.0 - (pf_r - 1) / max(n - 1, 1),
+                "pa_pct_rank": 1.0 - (pa_r - 1) / max(n - 1, 1),
             })
     if not rows:
         return pd.DataFrame()
@@ -53,6 +60,8 @@ def _avg_season_rank(matchups_df: pd.DataFrame, lid: str | None) -> pd.DataFrame
             worst_finish=("finish", "max"),
             avg_pct_rank=("pct_rank", "mean"),
             avg_win_pct=("h2h_win_pct", "mean"),
+            avg_pf_pct_rank=("pf_pct_rank", "mean"),
+            avg_pa_pct_rank=("pa_pct_rank", "mean"),
             season_list=("season", lambda x: ", ".join(str(s) for s in sorted(x))),
         )
         .reset_index()
@@ -60,6 +69,8 @@ def _avg_season_rank(matchups_df: pd.DataFrame, lid: str | None) -> pd.DataFrame
     summary["avg_finish"] = summary["avg_finish"].round(2)
     summary["avg_pct_rank"] = summary["avg_pct_rank"].round(3)
     summary["avg_win_pct"] = summary["avg_win_pct"].round(3)
+    summary["avg_pf_pct_rank"] = summary["avg_pf_pct_rank"].round(3)
+    summary["avg_pa_pct_rank"] = summary["avg_pa_pct_rank"].round(3)
     return summary.sort_values("avg_pct_rank", ascending=False).reset_index(drop=True)
 
 
@@ -243,8 +254,9 @@ def render(conn) -> None:
                 st.info("No data available.")
             else:
                 rank_df.insert(0, "Rank", range(1, len(rank_df) + 1))
-                out = rank_df[["Rank", "owner", "avg_finish", "best_finish", "worst_finish",
-                                "avg_pct_rank", "avg_win_pct", "seasons", "season_list"]].rename(columns={
+                cols_to_show = ["Rank", "owner", "avg_finish", "best_finish", "worst_finish",
+                                "avg_pct_rank", "avg_win_pct"]
+                rename_map = {
                     "owner": "Manager",
                     "avg_finish": "Avg Finish",
                     "best_finish": "Best",
@@ -253,10 +265,18 @@ def render(conn) -> None:
                     "avg_win_pct": "Avg Win%",
                     "seasons": "Seasons Played",
                     "season_list": "Seasons",
-                })
+                }
+                if "avg_pf_pct_rank" in rank_df.columns:
+                    cols_to_show.append("avg_pf_pct_rank")
+                    rename_map["avg_pf_pct_rank"] = "Avg PF Rank"
+                if "avg_pa_pct_rank" in rank_df.columns:
+                    cols_to_show.append("avg_pa_pct_rank")
+                    rename_map["avg_pa_pct_rank"] = "Avg PA Rank"
+                cols_to_show += ["seasons", "season_list"]
+                out = rank_df[[c for c in cols_to_show if c in rank_df.columns]].rename(columns=rename_map)
                 styled = style_dataframe(
                     out,
-                    higher_is_better=["Avg Pct Rank", "Avg Win%", "Seasons Played"],
+                    higher_is_better=["Avg Pct Rank", "Avg Win%", "Avg PF Rank", "Avg PA Rank", "Seasons Played"],
                     lower_is_better=["Avg Finish", "Best", "Worst"],
                 )
                 st.dataframe(styled, use_container_width=True, hide_index=True)

@@ -153,6 +153,17 @@ with st.sidebar:
     else:
         st.session_state["exclude_defensive"] = False
 
+    # Year range filter — global across all pages
+    _all_seasons = list(range(2019, 2027))
+    _prev_range = st.session_state.get("season_range", (_all_seasons[0], _all_seasons[-1]))
+    _yr_min, _yr_max = st.select_slider(
+        "Season range",
+        options=_all_seasons,
+        value=(_prev_range[0], _prev_range[1]),
+        help="Restrict all pages to seasons in this range.",
+    )
+    st.session_state["season_range"] = (_yr_min, _yr_max)
+
     st.divider()
 
     selected = st.radio("Navigate", list(pages.keys()), label_visibility="collapsed")
