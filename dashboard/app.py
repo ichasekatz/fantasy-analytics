@@ -132,5 +132,5 @@ with st.sidebar:
     )
 
 page_module = pages[selected]
-mod = importlib.import_module(f"pages.{page_module}")
+mod = importlib.import_module(f"views.{page_module}")
 mod.render(conn)
