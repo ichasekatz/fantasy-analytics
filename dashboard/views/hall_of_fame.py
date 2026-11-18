@@ -344,6 +344,8 @@ def _render_draft_boards(draft_df: pd.DataFrame) -> None:
     seasons = sorted(draft_df["season"].unique(), reverse=True)
     sel_season = st.selectbox("Season", seasons, key="hof_draft_season")
     df = draft_df[draft_df["season"] == sel_season].copy()
+    if "keeper" in df.columns:
+        df = df[~df["keeper"].fillna(False).astype(bool)]
 
     if df.empty:
         st.info("No draft data for this season.")
