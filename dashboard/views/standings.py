@@ -108,6 +108,7 @@ def _schedule_justice(matchups_df: pd.DataFrame, season: int, lid: str | None) -
     ap = ap.merge(total_pts, on="owner", how="left")
     ap["made_playoffs"] = ap["owner"].isin(playoff_owners)
     ap["pts_rank"] = ap["total_pts"].rank(ascending=False, method="min").astype(int)
+    ap["ap_rank"] = ap["ap_win_pct"].rank(ascending=False, method="min").astype(int)
 
     n_playoff = len(playoff_owners)
     snubbed = ap[~ap["made_playoffs"]].sort_values("ap_win_pct", ascending=False)
