@@ -316,7 +316,7 @@ def _render_franchise_histories(conn, matchups_df: pd.DataFrame) -> None:
             "PA": round(float(r["points_against"]), 1),
             "PF Rank": pf_r,
             "PA Rank": pa_r,
-            "Luck Δ": luck_delta,
+            "Schedule Luck": luck_delta,
             "Finish": rank,
             "Champion": "🏆" if int(s) in champ_seasons else "",
         })
@@ -326,11 +326,11 @@ def _render_franchise_histories(conn, matchups_df: pd.DataFrame) -> None:
         hist_df = pd.DataFrame(history_rows)
         styled_hist = style_dataframe(
             hist_df,
-            higher_is_better=["W", "PF", "Luck Δ"],
+            higher_is_better=["W", "PF", "Schedule Luck"],
             lower_is_better=["L", "PA", "PF Rank", "PA Rank", "Finish"],
         )
         st.dataframe(styled_hist, use_container_width=True, hide_index=True)
-        st.caption("PF Rank / PA Rank: 1 = best in league that season. Luck Δ = actual wins − expected (all-play).")
+        st.caption("PF Rank / PA Rank: 1 = best in league that season. Schedule Luck = actual wins − expected (all-play).")
 
 
 def _render_draft_boards(draft_df: pd.DataFrame) -> None:
