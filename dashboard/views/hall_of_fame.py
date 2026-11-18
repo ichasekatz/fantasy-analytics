@@ -326,8 +326,9 @@ def _render_franchise_histories(conn, matchups_df: pd.DataFrame) -> None:
         hist_df = pd.DataFrame(history_rows)
         styled_hist = style_dataframe(
             hist_df,
-            higher_is_better=["W", "PF", "Schedule Luck"],
+            higher_is_better=["W", "PF"],
             lower_is_better=["L", "PA", "PF Rank", "PA Rank", "Finish"],
+            zero_centered=["Schedule Luck"],
         )
         st.dataframe(styled_hist, use_container_width=True, hide_index=True)
         st.caption("PF Rank / PA Rank: 1 = best in league that season. Schedule Luck = actual wins − expected (all-play).")

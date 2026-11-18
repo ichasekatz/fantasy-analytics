@@ -347,11 +347,14 @@ def style_dataframe(
     df: pd.DataFrame,
     higher_is_better: list[str] | None = None,
     lower_is_better: list[str] | None = None,
+    zero_centered: list[str] | None = None,
 ) -> "pd.io.formats.style.Styler":
     """Apply RdYlGn background gradient to numeric columns.
 
     higher_is_better: columns where green=high (wins, points, win%)
     lower_is_better: columns where green=low (losses, finish rank)
+    zero_centered: columns where 0=yellow, positive=green, negative=red
+                   regardless of the range of values in the column
     """
     styler = df.style
     for col in (higher_is_better or []):
@@ -360,4 +363,13 @@ def style_dataframe(
     for col in (lower_is_better or []):
         if col in df.columns and pd.api.types.is_numeric_dtype(df[col]):
             styler = styler.background_gradient(cmap="RdYlGn_r", subset=[col], axis=0)
+    for col in (zero_centered or []):
+        if col in df.columns and pd.api.types.is_numeric_dtype(df[col]):
+            col_vals = df[col].dropna()
+            if not col_vals.empty:
+                max_abs = max(abs(col_vals.min()), abs(col_vals.max()), 0.01)
+                styler = styler.background_gradient(
+                    cmap="RdYlGn", subset=[col], axis=0,
+                    vmin=-max_abs, vmax=max_abs,
+                )
     return styler
