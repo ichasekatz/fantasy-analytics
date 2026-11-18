@@ -12,6 +12,7 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).parents[1]))
 sys.path.insert(0, str(Path(__file__).parents[2] / "src"))
 
+from fantasy.analytics.luck import schedule_luck
 from fantasy.analytics.standings import career_standings, season_standings
 from style import inject_css
 from utils import apply_league_filter, is_dynasty_league, style_dataframe
@@ -292,11 +293,20 @@ def _render_franchise_histories(conn, matchups_df: pd.DataFrame) -> None:
         rank = idx[0] + 1
         r = standings.iloc[idx[0]]
         n = len(standings)
-        # PF/PA rank normalized to [0,1] like the avg rank tables
         pf_ranks = standings["points_for"].fillna(0).rank(ascending=False, method="min").astype(int)
         pa_ranks = standings["points_against"].fillna(0).rank(ascending=True, method="min").astype(int)
         pf_r = int(pf_ranks.iloc[idx[0]])
         pa_r = int(pa_ranks.iloc[idx[0]])
+        # Schedule luck delta for this manager this season
+        luck_delta = None
+        try:
+            luck_df = schedule_luck(matchups_df, int(s), lid2)
+            if not luck_df.empty and "owner" in luck_df.columns and "luck_delta" in luck_df.columns:
+                lrow = luck_df[luck_df["owner"] == sel]
+                if not lrow.empty:
+                    luck_delta = round(float(lrow.iloc[0]["luck_delta"]), 1)
+        except Exception:
+            pass
         history_rows.append({
             "Season": int(s),
             "Team": r.get("team", ""),
@@ -306,6 +316,7 @@ def _render_franchise_histories(conn, matchups_df: pd.DataFrame) -> None:
             "PA": round(float(r["points_against"]), 1),
             "PF Rank": pf_r,
             "PA Rank": pa_r,
+            "Luck Δ": luck_delta,
             "Finish": rank,
             "Champion": "🏆" if int(s) in champ_seasons else "",
         })
@@ -315,11 +326,11 @@ def _render_franchise_histories(conn, matchups_df: pd.DataFrame) -> None:
         hist_df = pd.DataFrame(history_rows)
         styled_hist = style_dataframe(
             hist_df,
-            higher_is_better=["W", "PF"],
+            higher_is_better=["W", "PF", "Luck Δ"],
             lower_is_better=["L", "PA", "PF Rank", "PA Rank", "Finish"],
         )
         st.dataframe(styled_hist, use_container_width=True, hide_index=True)
-        st.caption("PF Rank / PA Rank: 1 = best in league that season.")
+        st.caption("PF Rank / PA Rank: 1 = best in league that season. Luck Δ = actual wins − expected (all-play).")
 
 
 def _render_draft_boards(draft_df: pd.DataFrame) -> None:
