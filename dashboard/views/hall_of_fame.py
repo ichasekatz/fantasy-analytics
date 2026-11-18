@@ -297,8 +297,6 @@ def _render_franchise_histories(conn, matchups_df: pd.DataFrame) -> None:
         pa_ranks = standings["points_against"].fillna(0).rank(ascending=True, method="min").astype(int)
         pf_r = int(pf_ranks.iloc[idx[0]])
         pa_r = int(pa_ranks.iloc[idx[0]])
-        pf_pct = round(1.0 - (pf_r - 1) / max(n - 1, 1), 3)
-        pa_pct = round(1.0 - (pa_r - 1) / max(n - 1, 1), 3)
         history_rows.append({
             "Season": int(s),
             "Team": r.get("team", ""),
@@ -306,8 +304,8 @@ def _render_franchise_histories(conn, matchups_df: pd.DataFrame) -> None:
             "L": int(r["total_losses"]),
             "PF": round(float(r["points_for"]), 1),
             "PA": round(float(r["points_against"]), 1),
-            "PF Rank": pf_pct,
-            "PA Rank": pa_pct,
+            "PF Rank": pf_r,
+            "PA Rank": pa_r,
             "Finish": rank,
             "Champion": "🏆" if int(s) in champ_seasons else "",
         })
@@ -317,11 +315,11 @@ def _render_franchise_histories(conn, matchups_df: pd.DataFrame) -> None:
         hist_df = pd.DataFrame(history_rows)
         styled_hist = style_dataframe(
             hist_df,
-            higher_is_better=["W", "PF", "PF Rank", "PA Rank"],
-            lower_is_better=["L", "PA", "Finish"],
+            higher_is_better=["W", "PF"],
+            lower_is_better=["L", "PA", "PF Rank", "PA Rank", "Finish"],
         )
         st.dataframe(styled_hist, use_container_width=True, hide_index=True)
-        st.caption("PF Rank / PA Rank: 1.0 = best in league that season, 0.0 = worst. Normalized for field size.")
+        st.caption("PF Rank / PA Rank: 1 = best in league that season.")
 
 
 def _render_draft_boards(draft_df: pd.DataFrame) -> None:
