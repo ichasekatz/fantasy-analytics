@@ -406,4 +406,4 @@ def _render_draft_boards(draft_df: pd.DataFrame) -> None:
     st.markdown(table_html, unsafe_allow_html=True)
 
     st.divider()
-    st.caption("Position colors: 🔴 QB · 🟢 RB · 🔵 WR · 🟡 TE · 🟣 K · ⚫ DST · 🔑 Keeper")
+    st.caption("Position colors: 🔴 QB · 🟢 RB · 🔵 WR · 🟡 TE · 🟣 K · ⚫ DST")
